@@ -227,7 +227,7 @@ export default function Home() {
               </button>
             </div>
 
-            <a href="mailto:sakis@sakis-athan.com" className="hidden sm:block text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+            <a href="mailto:sakis@sakis-athan.com?subject=Website%20Security%20Survey%20Request&body=I%20would%20like%20a%20total%20check%20of%20my%20website%3A%20%5BENTER%20YOUR%20WEBSITE%20HERE%5D%0A%0AKind%20regards" className="hidden sm:block text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
               Contact Support
             </a>
           </div>
@@ -239,7 +239,7 @@ export default function Home() {
         
         {/* Mobile-only Contact Support */}
         <div className="sm:hidden flex justify-center mb-6">
-          <a href="mailto:sakis@sakis-athan.com" className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+          <a href="mailto:sakis@sakis-athan.com?subject=Website%20Security%20Survey%20Request&body=I%20would%20like%20a%20total%20check%20of%20my%20website%3A%20%5BENTER%20YOUR%20WEBSITE%20HERE%5D%0A%0AKind%20regards" className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
             ✉ Contact Support
           </a>
         </div>

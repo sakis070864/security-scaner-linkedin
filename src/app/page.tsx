@@ -237,6 +237,13 @@ export default function Home() {
       {/* Hero Section */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-32 pb-24">
         
+        {/* Mobile-only Contact Support */}
+        <div className="sm:hidden flex justify-center mb-6">
+          <a href="mailto:sakis@sakis-athan.com" className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            ✉ Contact Support
+          </a>
+        </div>
+
         <div className="text-center mb-10 space-y-4">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs sm:text-sm font-medium mb-4">
             <ShieldAlert className="w-4 h-4" />

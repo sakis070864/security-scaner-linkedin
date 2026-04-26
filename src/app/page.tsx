@@ -189,14 +189,15 @@ export default function Home() {
               <span className="font-bold tracking-tight text-lg sm:text-xl">Athan<span className="text-blue-600 dark:text-blue-500">Security</span></span>
             </div>
             
-            <div className="hidden sm:block w-px h-5 bg-slate-300 dark:bg-white/10"></div>
+            <div className="w-px h-5 bg-slate-300 dark:bg-white/10"></div>
             
             <a 
               href="https://sakis-athan.com" 
-              className="hidden sm:flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 transition-colors"
+              className="flex items-center gap-1.5 text-xs sm:text-sm font-medium text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 transition-colors"
             >
-              <ArrowLeft className="w-4 h-4" />
-              Back to Website
+              <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Back to Website</span>
+              <span className="sm:hidden">Back</span>
             </a>
           </div>
           <div className="flex items-center gap-4">

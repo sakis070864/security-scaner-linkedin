@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowRight, ShieldCheck, AlertTriangle, ShieldAlert, CheckCircle2, XCircle, Sun, Moon, Laptop, Calendar } from 'lucide-react';
+import { ArrowRight, ArrowLeft, ShieldCheck, AlertTriangle, ShieldAlert, CheckCircle2, XCircle, Sun, Moon, Laptop, Calendar } from 'lucide-react';
 
 type ScanResult = {
   url: string;
@@ -183,9 +183,21 @@ export default function Home() {
       {/* Navigation */}
       <nav className="w-full border-b border-slate-200 dark:border-white/5 bg-white/80 dark:bg-black/50 backdrop-blur-md fixed top-0 z-50 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-6 h-6 text-blue-600 dark:text-blue-500" />
-            <span className="font-bold tracking-tight text-lg sm:text-xl">Athan<span className="text-blue-600 dark:text-blue-500">Security</span></span>
+          <div className="flex items-center gap-4 sm:gap-6">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-6 h-6 text-blue-600 dark:text-blue-500" />
+              <span className="font-bold tracking-tight text-lg sm:text-xl">Athan<span className="text-blue-600 dark:text-blue-500">Security</span></span>
+            </div>
+            
+            <div className="hidden sm:block w-px h-5 bg-slate-300 dark:bg-white/10"></div>
+            
+            <a 
+              href="https://sakis-athan.com" 
+              className="hidden sm:flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Website
+            </a>
           </div>
           <div className="flex items-center gap-4">
             

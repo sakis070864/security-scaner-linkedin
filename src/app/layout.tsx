@@ -35,7 +35,7 @@ export default function RootLayout({
       <head>
         <Script id="linkedin-insight-tag" strategy="afterInteractive">
           {`
-            _linkedin_partner_id = "YOUR_LINKEDIN_PARTNER_ID"; // TODO: Replace with your actual Partner ID
+            _linkedin_partner_id = "9057010";
             window._linkedin_data_partner_ids = window._linkedin_data_partner_ids || [];
             window._linkedin_data_partner_ids.push(_linkedin_partner_id);
             (function(l) {

@@ -15,12 +15,42 @@ interface LinkedInWebhookPayload {
 
 export async function POST(request: Request) {
   try {
-    const payload: LinkedInWebhookPayload = await request.json();
-    console.log('Received LinkedIn Webhook:', JSON.stringify(payload, null, 2));
+    const rawBody = await request.text();
+    console.log('=== RAW BODY RECEIVED ===');
+    console.log(rawBody);
+    console.log('=== END RAW BODY ===');
 
-    // 1. Extract Email and Website URL from the payload
-    let email = payload.email || '';
-    let website = payload.website || '';
+    let payload: LinkedInWebhookPayload;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch (parseErr) {
+      console.error('Failed to parse JSON body:', parseErr);
+      return NextResponse.json({ error: 'Invalid JSON body', received: rawBody.substring(0, 200) }, { status: 400 });
+    }
+
+    console.log('Parsed LinkedIn Webhook:', JSON.stringify(payload, null, 2));
+
+    // 1. Extract Email and Website URL - search through ALL fields
+    let email = '';
+    let website = '';
+
+    // Direct field access
+    if (payload.email) email = payload.email;
+    if (payload.website) website = payload.website;
+
+    // Search through all top-level fields for email/URL patterns
+    for (const [key, value] of Object.entries(payload)) {
+      if (typeof value !== 'string') continue;
+      const k = key.toLowerCase();
+      // Find email field
+      if (!email && (k.includes('email') || k.includes('mail') || value.includes('@'))) {
+        email = value;
+      }
+      // Find website/URL field
+      if (!website && (k.includes('website') || k.includes('url') || k.includes('domain') || k.includes('site') || value.startsWith('http'))) {
+        website = value;
+      }
+    }
 
     // If LinkedIn sends the data in a nested "form_data" array:
     if (payload.form_data && Array.isArray(payload.form_data)) {
@@ -31,9 +61,15 @@ export async function POST(request: Request) {
       });
     }
 
+    console.log(`Extracted => email: "${email}", website: "${website}"`);
+
     if (!email || !website) {
-      console.warn('Webhook payload missing required email or website fields.');
-      return NextResponse.json({ error: 'Missing email or website in payload' }, { status: 400 });
+      console.warn('Missing fields. Full payload keys:', Object.keys(payload));
+      return NextResponse.json({ 
+        error: 'Missing email or website in payload',
+        extracted: { email, website },
+        receivedKeys: Object.keys(payload) 
+      }, { status: 400 });
     }
 
     // Ensure URL format

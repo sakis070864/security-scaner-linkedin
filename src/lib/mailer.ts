@@ -51,3 +51,50 @@ export async function sendReportEmail(clientEmail: string, pdfBuffer: Buffer, ta
     throw error;
   }
 }
+
+export async function sendFailureEmail(clientEmail: string, targetUrl: string, errorMessage: string) {
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER) {
+    console.warn('SMTP credentials not configured. Skipping failure email.');
+    return false;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_PORT === '465',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM || '"Security Audit Team" <noreply@yourdomain.com>',
+    to: clientEmail,
+    subject: `Security Audit Update: ${targetUrl}`,
+    html: `
+      <h2>We Couldn't Complete Your Security Audit</h2>
+      <p>Hello,</p>
+      <p>Thank you for requesting a compliance audit for <strong>${targetUrl}</strong>.</p>
+      <p>Unfortunately, our scanner was unable to reach or fully analyze this website. This can happen if:</p>
+      <ul>
+        <li>The URL was misspelled or doesn't exist</li>
+        <li>The website blocks automated security scanners</li>
+        <li>The server was temporarily down</li>
+      </ul>
+      <p>Please double-check the URL and try again, or reply to this email and we'll run a manual audit for you — free of charge.</p>
+      <br>
+      <p>Best regards,</p>
+      <p>The Security Audit Team</p>
+    `
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Failure notification sent: %s', info.messageId);
+    return true;
+  } catch (error) {
+    console.error('Error sending failure email:', error);
+    throw error;
+  }
+}

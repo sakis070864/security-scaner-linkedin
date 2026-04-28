@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { performScan } from '@/lib/scanner';
 import { generateComplianceReport } from '@/lib/pdfGenerator';
-import { sendReportEmail } from '@/lib/mailer';
+import { sendReportEmail, sendFailureEmail } from '@/lib/mailer';
 
 // Define the shape of the expected payload from LinkedIn Lead Gen Forms
 // Note: Actual LinkedIn webhook payloads can vary based on form configuration.
@@ -63,6 +63,13 @@ export async function POST(request: Request) {
         console.log(`[Job Finished] Successfully processed lead for ${email}`);
       } catch (err: any) {
         console.error(`[Job Error] Failed to process lead for ${email}:`, err.message);
+        // Notify the client that the scan failed
+        try {
+          await sendFailureEmail(email, website, err.message);
+          console.log(`[Job Recovery] Failure notification sent to ${email}`);
+        } catch (mailErr: any) {
+          console.error(`[Job Critical] Could not send failure email to ${email}:`, mailErr.message);
+        }
       }
     };
 

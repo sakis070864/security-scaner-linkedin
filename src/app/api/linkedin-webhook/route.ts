@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { waitUntil } from '@vercel/functions';
 import { performScan } from '@/lib/scanner';
 import { generateComplianceReport } from '@/lib/pdfGenerator';
 import { sendReportEmail, sendFailureEmail } from '@/lib/mailer';
@@ -73,8 +74,8 @@ export async function POST(request: Request) {
       }
     };
 
-    // Start background job without awaiting it
-    runBackgroundJob();
+    // Use waitUntil to keep the serverless function alive during the background job
+    waitUntil(runBackgroundJob());
 
     // 3. Acknowledge receipt to LinkedIn immediately
     return NextResponse.json({ success: true, message: 'Webhook received. Processing in background.' }, { status: 200 });

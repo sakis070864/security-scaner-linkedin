@@ -103,6 +103,11 @@ export default function Home() {
     setResult(null);
     setScanPhase('Checking security headers...');
 
+    // LinkedIn Conversion Tracking (Optional: Fire event when scan starts)
+    if (typeof window !== 'undefined' && (window as any).lintrk) {
+      (window as any).lintrk('track', { conversion_id: 12345678 }); // TODO: Replace with your actual Conversion ID
+    }
+
     // Animate through phases while the request runs
     const phaseTimer1 = setTimeout(() => setScanPhase('Verifying Global Privacy Control (GPC)...'), 1500);
     const phaseTimer2 = setTimeout(() => setScanPhase('Scanning for pre-consent trackers...'), 3000);
@@ -245,9 +250,9 @@ export default function Home() {
         </div>
 
         <div className="text-center mb-10 space-y-4">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs sm:text-sm font-medium mb-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs sm:text-sm font-medium mb-4">
             <ShieldAlert className="w-4 h-4" />
-            NY SHIELD Act Compliance Scanner
+            Global Privacy & Data Security Scanner
           </div>
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight leading-tight">
             Is Your Website or App <br className="hidden sm:block" />
@@ -256,7 +261,7 @@ export default function Home() {
             </span>
           </h1>
           <p className="text-slate-600 dark:text-slate-400 text-base sm:text-lg md:text-xl max-w-2xl mx-auto leading-relaxed mt-4">
-            Is your website or app protecting your visitors&apos; sensitive data? The NY SHIELD Act caps breach notification failures at $250,000—but CCPA and GDPR carry no such small caps, reaching <span className="font-bold text-slate-900 dark:text-white">4–7% of global revenue</span>. Enter your URL below for a free diagnostic report.
+            Is your business protecting its visitors' sensitive data? Data breach and privacy failures under the GDPR, CCPA, and FTC guidelines carry massive fines reaching <span className="font-bold text-slate-900 dark:text-white">4–7% of global revenue</span>. Enter your URL below for a free diagnostic report.
           </p>
         </div>
 
@@ -564,7 +569,7 @@ export default function Home() {
                 <AlertTriangle className="w-10 h-10 sm:w-12 sm:h-12 text-yellow-600 dark:text-yellow-500 mx-auto mb-4" />
                 <h3 className="text-xl sm:text-2xl font-bold mb-3 text-slate-900 dark:text-white">Your Business is Exposed</h3>
                 <p className="text-sm sm:text-base text-slate-700 dark:text-slate-300 max-w-xl mx-auto mb-6 sm:mb-8 leading-relaxed">
-                  These failures may violate the <span className="font-bold text-slate-900 dark:text-white">NY SHIELD Act</span> ($250K cap for notification failures), the <span className="font-bold text-slate-900 dark:text-white">CCPA/CPRA</span>, and the <span className="font-bold text-slate-900 dark:text-white">EU GDPR</span> — which carry fines up to <span className="font-bold text-red-600 dark:text-red-400">4–7% of global annual revenue</span> with no cap. We implement enterprise-grade security wrappers with zero downtime.
+                  These failures violate global data protection laws like the <span className="font-bold text-slate-900 dark:text-white">GDPR</span>, <span className="font-bold text-slate-900 dark:text-white">CCPA/CPRA</span>, and <span className="font-bold text-slate-900 dark:text-white">FTC Guidelines</span> — which carry fines up to <span className="font-bold text-red-600 dark:text-red-400">4–7% of global annual revenue</span> with no cap. We implement enterprise-grade security wrappers with zero downtime.
                 </p>
                 {!showBotChallenge ? (
                   <button 
@@ -602,7 +607,7 @@ export default function Home() {
                 <ShieldCheck className="w-10 h-10 sm:w-12 sm:h-12 text-green-600 dark:text-green-500 mx-auto mb-4" />
                 <h3 className="text-xl sm:text-2xl font-bold mb-3 text-slate-900 dark:text-white">Your Business is Protected</h3>
                 <p className="text-sm sm:text-base text-slate-700 dark:text-slate-300 max-w-xl mx-auto mb-6 sm:mb-8 leading-relaxed">
-                  All critical security headers are properly configured. Your website meets the NY SHIELD Act and GDPR compliance benchmarks. We offer ongoing monitoring and advanced hardening services to keep you ahead of the 2026 regulatory landscape.
+                  All critical security headers are properly configured. Your website meets GDPR and CCPA compliance benchmarks. We offer ongoing monitoring and advanced hardening services to keep you ahead of the 2026 regulatory landscape.
                 </p>
                 <a 
                   href="https://sakis-athan.com" 

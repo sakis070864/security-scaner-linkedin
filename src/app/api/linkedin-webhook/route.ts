@@ -52,24 +52,23 @@ export async function POST(request: Request) {
     
     const runBackgroundJob = async () => {
       try {
-        console.log(`[Job Started] Scanning ${website}...`);
+        console.log(`[Step 1/4] Starting scan for ${website}...`);
         const scanData = await performScan(website);
+        console.log(`[Step 2/4] Scan COMPLETE. Grade: ${scanData.grade}, Score: ${scanData.score}. Generating PDF...`);
         
-        console.log(`[Job Progress] Scan complete. Generating PDF...`);
         const pdfBuffer = await generateComplianceReport(scanData);
+        console.log(`[Step 3/4] PDF GENERATED. Size: ${pdfBuffer.length} bytes. Sending email to ${email}...`);
         
-        console.log(`[Job Progress] PDF generated. Sending email to ${email}...`);
         await sendReportEmail(email, pdfBuffer, website);
-        
-        console.log(`[Job Finished] Successfully processed lead for ${email}`);
+        console.log(`[Step 4/4] EMAIL SENT to ${email}. Pipeline complete!`);
       } catch (err: any) {
-        console.error(`[Job Error] Failed to process lead for ${email}:`, err.message);
-        // Notify the client that the scan failed
+        console.error(`[PIPELINE FAILED] Step failed for ${email}:`, err.message);
+        console.error(`[PIPELINE FAILED] Stack:`, err.stack);
         try {
           await sendFailureEmail(email, website, err.message);
-          console.log(`[Job Recovery] Failure notification sent to ${email}`);
+          console.log(`[Recovery] Failure notification sent to ${email}`);
         } catch (mailErr: any) {
-          console.error(`[Job Critical] Could not send failure email to ${email}:`, mailErr.message);
+          console.error(`[CRITICAL] Could not send failure email to ${email}:`, mailErr.message);
         }
       }
     };

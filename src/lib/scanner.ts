@@ -177,37 +177,28 @@ export async function performScan(targetUrl: string): Promise<ScanResultData> {
 
   // ── Phase 1: Security Header Check
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+  const browserUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
   let response;
   try {
+    // Use GET with browser User-Agent (many sites block HEAD and custom UAs)
     response = await fetch(targetUrl, {
-      method: 'HEAD',
+      method: 'GET',
       signal: controller.signal,
-      redirect: 'follow', 
+      redirect: 'follow',
       headers: {
-        'User-Agent': 'SecurityScanner-LeadGen/1.0',
+        'User-Agent': browserUA,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       }
     });
     clearTimeout(timeoutId);
-  } catch (fetchError) {
+    console.log(`[Scanner] Fetched ${targetUrl} — Status: ${response.status}`);
+  } catch (err: any) {
     clearTimeout(timeoutId);
-    // Fallback to GET if HEAD is rejected
-    try {
-      const fallbackController = new AbortController();
-      const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 10000);
-      response = await fetch(targetUrl, {
-        method: 'GET',
-        signal: fallbackController.signal,
-        redirect: 'follow',
-        headers: {
-          'User-Agent': 'SecurityScanner-LeadGen/1.0',
-        }
-      });
-      clearTimeout(fallbackTimeoutId);
-    } catch (err) {
-      throw new Error('Failed to reach the website. Please check the URL and try again.');
-    }
+    console.error(`[Scanner] Failed to fetch ${targetUrl}:`, err.message);
+    throw new Error(`Failed to reach the website (${err.message}). Please check the URL and try again.`);
   }
 
   if (!response) {

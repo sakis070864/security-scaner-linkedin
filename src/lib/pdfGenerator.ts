@@ -193,7 +193,7 @@ export async function generateComplianceReport(scanData: DeepScanResult): Promis
     doc.text(header.name, 20, y);
 
     // Status badge
-    if (header.present) {
+    if (header.status === 'pass') {
       drawBadge(doc, 'PASSED', pw - 42, y, COLORS.green, COLORS.lightGreen);
     } else {
       drawBadge(doc, 'MISSING', pw - 42, y, COLORS.red, COLORS.lightRed);
@@ -201,12 +201,12 @@ export async function generateComplianceReport(scanData: DeepScanResult): Promis
 
     y += 5;
 
-    if (header.present) {
-      // Show the value (truncated)
+    if (header.status === 'pass') {
+      // Show the detail (truncated)
       doc.setFontSize(7);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(COLORS.medGray[0], COLORS.medGray[1], COLORS.medGray[2]);
-      const val = header.value.length > 100 ? header.value.substring(0, 100) + '...' : header.value;
+      const val = header.detail.length > 100 ? header.detail.substring(0, 100) + '...' : header.detail;
       doc.text(val, 20, y);
       y += 5;
     } else {
@@ -315,7 +315,7 @@ export async function generateComplianceReport(scanData: DeepScanResult): Promis
       doc.setFontSize(7);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(COLORS.lightGray[0], COLORS.lightGray[1], COLORS.lightGray[2]);
-      doc.text(t.domain, 27, y);
+      doc.text(t.type, 27, y);
       y += 6;
     }
   }

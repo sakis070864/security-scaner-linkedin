@@ -1,402 +1,349 @@
 // ═══════════════════════════════════════════════════════════════
-//  DEEP PENETRATION SCANNER ENGINE
-//  Passive-only vulnerability assessment (no active exploitation)
+//  DEEP PENETRATION SCANNER ENGINE v2 — 150+ Check Points
+//  Shows ALL checks (PASS + FAIL) like professional scanners
 // ═══════════════════════════════════════════════════════════════
 
-const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+import {
+  SECURITY_HEADERS, SENSITIVE_PATHS, ADMIN_PANELS,
+  KNOWN_TRACKERS, INLINE_TRACKER_SIGS, TECH_SIGNATURES,
+  DANGEROUS_HTTP_METHODS
+} from './scanChecks';
 
-// ─── Curated Tracker Database ───────────────────────────────────────────────
-const KNOWN_TRACKERS = [
-  { name: 'Google Analytics', patterns: ['google-analytics.com', 'www.google-analytics.com/analytics.js'], type: 'Analytics' },
-  { name: 'Google Tag Manager', patterns: ['googletagmanager.com/gtag', 'googletagmanager.com/gtm'], type: 'Tag Manager' },
-  { name: 'Meta / Facebook Pixel', patterns: ['connect.facebook.net', 'facebook.com/tr'], type: 'Marketing' },
-  { name: 'TikTok Pixel', patterns: ['analytics.tiktok.com'], type: 'Marketing' },
-  { name: 'LinkedIn Insight Tag', patterns: ['snap.licdn.com', 'linkedin.com/px'], type: 'Marketing' },
-  { name: 'Microsoft Clarity', patterns: ['clarity.ms'], type: 'Analytics' },
-  { name: 'Hotjar', patterns: ['hotjar.com', 'static.hotjar.com'], type: 'Analytics' },
-  { name: 'Bing UET', patterns: ['bat.bing.com'], type: 'Marketing' },
-  { name: 'Google Ads / DoubleClick', patterns: ['doubleclick.net', 'googlesyndication.com', 'googleadservices.com'], type: 'Advertising' },
-  { name: 'Pinterest Tag', patterns: ['pinimg.com/ct', 'ct.pinterest.com'], type: 'Marketing' },
-  { name: 'Twitter / X Pixel', patterns: ['ads-twitter.com', 'static.ads-twitter.com', 'analytics.twitter.com'], type: 'Marketing' },
-  { name: 'Snapchat Pixel', patterns: ['sc-static.net'], type: 'Marketing' },
-];
+const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
-const INLINE_TRACKER_SIGNATURES = [
-  { name: 'Meta / Facebook Pixel', pattern: 'fbq(', type: 'Marketing' },
-  { name: 'Google Analytics (gtag)', pattern: 'gtag(', type: 'Analytics' },
-  { name: 'Google Analytics (ga())', pattern: "ga('send", type: 'Analytics' },
-  { name: 'TikTok Pixel', pattern: 'ttq.load', type: 'Marketing' },
-  { name: 'Hotjar', pattern: 'hj(', type: 'Analytics' },
-  { name: 'LinkedIn Insight Tag', pattern: '_linkedin_partner_id', type: 'Marketing' },
-  { name: 'Microsoft Clarity', pattern: 'clarity(', type: 'Analytics' },
-  { name: 'Pinterest Tag', pattern: 'pintrk(', type: 'Marketing' },
-];
+// ─── Types ──────────────────────────────────────────────────────────────────
+export type CheckResult = { name: string; status: 'pass' | 'fail' | 'warn' | 'info'; detail: string; risk: string };
 
-// ─── Sensitive Files to Probe ───────────────────────────────────────────────
-const SENSITIVE_FILES = [
-  { path: '/.env', risk: 'Critical', desc: 'Environment variables file — may contain database passwords, API keys, secrets' },
-  { path: '/.git/config', risk: 'Critical', desc: 'Git configuration — exposes repository structure and potentially credentials' },
-  { path: '/wp-config.php', risk: 'Critical', desc: 'WordPress config — contains database credentials and auth keys' },
-  { path: '/.htpasswd', risk: 'Critical', desc: 'Apache password file — contains hashed credentials' },
-  { path: '/phpinfo.php', risk: 'High', desc: 'PHP info page — reveals server configuration, installed modules, paths' },
-  { path: '/server-status', risk: 'High', desc: 'Apache server status — reveals active connections and internal URLs' },
-  { path: '/robots.txt', risk: 'Info', desc: 'Robots file — may reveal hidden directories and internal paths' },
-  { path: '/sitemap.xml', risk: 'Info', desc: 'Sitemap — reveals full site structure' },
-  { path: '/.well-known/security.txt', risk: 'Info', desc: 'Security contact info — good practice but reveals security team details' },
-  { path: '/crossdomain.xml', risk: 'Medium', desc: 'Flash cross-domain policy — may allow unauthorized cross-domain access' },
-  { path: '/backup.sql', risk: 'Critical', desc: 'Database backup — full database dump with all data' },
-  { path: '/database.sql', risk: 'Critical', desc: 'Database dump — full database with credentials and user data' },
-  { path: '/debug.log', risk: 'High', desc: 'Debug log — may contain stack traces, credentials, internal paths' },
-  { path: '/error.log', risk: 'High', desc: 'Error log — may reveal internal server errors and paths' },
-];
+export type DeepScanResult = {
+  url: string; grade: string; score: number;
+  totalChecks: number; passed: number; failed: number; warnings: number;
+  headers: CheckResult[];
+  exposedFiles: CheckResult[];
+  adminPanels: CheckResult[];
+  cookies: CheckResult[];
+  cors: CheckResult[];
+  infoDisclosure: CheckResult[];
+  httpMethods: CheckResult[];
+  technologies: Array<{ name: string; category: string }>;
+  trackers: { found: number; list: Array<{ name: string; type: string }> };
+  gpc: { supported: boolean; details: string };
+  htmlAnalysis: CheckResult[];
+  timestamp: string;
+};
 
-// ─── Admin Panels to Check ──────────────────────────────────────────────────
-const ADMIN_PANELS = [
-  { path: '/wp-admin', name: 'WordPress Admin' },
-  { path: '/wp-login.php', name: 'WordPress Login' },
-  { path: '/admin', name: 'Admin Panel' },
-  { path: '/administrator', name: 'Joomla Admin' },
-  { path: '/phpmyadmin', name: 'phpMyAdmin' },
-  { path: '/cpanel', name: 'cPanel' },
-  { path: '/webmail', name: 'Webmail' },
-  { path: '/login', name: 'Login Page' },
-  { path: '/dashboard', name: 'Dashboard' },
-];
-
-// ─── Technology Signatures ──────────────────────────────────────────────────
-const TECH_SIGNATURES = [
-  { name: 'WordPress', patterns: ['wp-content', 'wp-includes', 'wp-json'], category: 'CMS' },
-  { name: 'Joomla', patterns: ['/media/jui/', '/components/com_', 'Joomla!'], category: 'CMS' },
-  { name: 'Drupal', patterns: ['Drupal.settings', '/sites/default/', '/core/misc/drupal'], category: 'CMS' },
-  { name: 'Shopify', patterns: ['cdn.shopify.com', 'shopify-section'], category: 'E-Commerce' },
-  { name: 'Wix', patterns: ['static.wixstatic.com', 'wix.com'], category: 'Website Builder' },
-  { name: 'Squarespace', patterns: ['squarespace.com', 'static1.squarespace.com'], category: 'Website Builder' },
-  { name: 'React', patterns: ['react.production.min', '__NEXT_DATA__', 'reactroot'], category: 'Framework' },
-  { name: 'Next.js', patterns: ['__NEXT_DATA__', '_next/static', 'next/dist'], category: 'Framework' },
-  { name: 'Vue.js', patterns: ['vue.runtime', '__vue__', 'vue-router'], category: 'Framework' },
-  { name: 'Angular', patterns: ['ng-version', 'angular.min', 'ng-app'], category: 'Framework' },
-  { name: 'jQuery', patterns: ['jquery.min.js', 'jquery-', 'jQuery'], category: 'Library' },
-  { name: 'Bootstrap', patterns: ['bootstrap.min.css', 'bootstrap.min.js', 'bootstrap.bundle'], category: 'Library' },
-  { name: 'Cloudflare', patterns: ['cf-ray', 'cloudflare'], category: 'CDN/Security' },
-];
-
-// ═══════════════════════════════════════════════════════════════
-//  CHECK FUNCTIONS
-// ═══════════════════════════════════════════════════════════════
-
-async function quickFetch(url: string, timeoutMs = 5000): Promise<Response | null> {
+// ─── Helpers ────────────────────────────────────────────────────────────────
+async function quickFetch(url: string, method = 'HEAD', timeout = 5000): Promise<Response | null> {
   try {
-    const controller = new AbortController();
-    const tid = setTimeout(() => controller.abort(), timeoutMs);
-    const res = await fetch(url, {
-      method: 'HEAD',
-      signal: controller.signal,
-      redirect: 'follow',
-      headers: { 'User-Agent': BROWSER_UA },
-    });
-    clearTimeout(tid);
-    return res;
-  } catch {
-    return null;
-  }
+    const c = new AbortController();
+    const t = setTimeout(() => c.abort(), timeout);
+    const r = await fetch(url, { method, signal: c.signal, redirect: 'follow', headers: { 'User-Agent': UA } });
+    clearTimeout(t);
+    return r;
+  } catch { return null; }
 }
 
-// ─── GPC Detection ──────────────────────────────────────────────────────────
-async function checkGPC(targetUrl: string) {
-  try {
-    const origin = new URL(targetUrl).origin;
-    const gpcUrl = `${origin}/.well-known/gpc.json`;
-    const controller = new AbortController();
-    const tid = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(gpcUrl, {
-      method: 'GET', signal: controller.signal, redirect: 'follow',
-      headers: { 'User-Agent': BROWSER_UA, 'Accept': 'application/json' }
-    });
-    clearTimeout(tid);
+// ═══════════════════════════════════════════════════════════════
+//  CHECK FUNCTIONS — Each returns CheckResult[]
+// ═══════════════════════════════════════════════════════════════
 
-    if (!response.ok) {
-      return { supported: false, wellKnownFound: false, details: 'No .well-known/gpc.json found. This site does not declare Global Privacy Control support — a mandatory signal in 10+ US states as of 2026.' };
-    }
-    const text = await response.text();
-    try {
-      const json = JSON.parse(text);
-      if (json.gpc === true) {
-        return { supported: true, wellKnownFound: true, details: `GPC support declared. Last updated: ${json.lastUpdate || 'Not specified'}.` };
-      }
-      return { supported: false, wellKnownFound: true, details: 'The .well-known/gpc.json file exists but "gpc" is set to false.' };
-    } catch {
-      return { supported: false, wellKnownFound: true, details: 'The .well-known/gpc.json file exists but contains invalid JSON.' };
-    }
-  } catch {
-    return { supported: false, wellKnownFound: false, details: 'No .well-known/gpc.json found. This site does not declare Global Privacy Control support.' };
-  }
-}
-
-// ─── Pre-Consent Tracker Scan ───────────────────────────────────────────────
-async function scanTrackers(targetUrl: string, html: string) {
-  const htmlLower = html.toLowerCase();
-  const foundTrackers: Array<{ name: string; domain: string; type: string }> = [];
-  const seenNames = new Set<string>();
-
-  for (const tracker of KNOWN_TRACKERS) {
-    if (seenNames.has(tracker.name)) continue;
-    for (const pattern of tracker.patterns) {
-      if (htmlLower.includes(pattern.toLowerCase())) {
-        foundTrackers.push({ name: tracker.name, domain: pattern, type: tracker.type });
-        seenNames.add(tracker.name);
-        break;
-      }
-    }
-  }
-  for (const sig of INLINE_TRACKER_SIGNATURES) {
-    if (seenNames.has(sig.name)) continue;
-    if (htmlLower.includes(sig.pattern.toLowerCase())) {
-      foundTrackers.push({ name: sig.name, domain: `Inline: ${sig.pattern}...)`, type: sig.type });
-      seenNames.add(sig.name);
-    }
-  }
-  return { found: foundTrackers.length, list: foundTrackers };
-}
-
-// ─── Exposed Files ──────────────────────────────────────────────────────────
-async function checkExposedFiles(origin: string) {
-  const results: Array<{ path: string; accessible: boolean; risk: string; desc: string; status: number }> = [];
-
-  const checks = SENSITIVE_FILES.map(async (file) => {
-    const res = await quickFetch(`${origin}${file.path}`);
-    const status = res?.status || 0;
-    // 200 = accessible, 403 = exists but blocked (still info), others = not found
-    const accessible = status === 200;
-    results.push({ path: file.path, accessible, risk: file.risk, desc: file.desc, status });
+function checkHeaders(response: Response): CheckResult[] {
+  return SECURITY_HEADERS.map(h => {
+    const val = response.headers.get(h.name);
+    if (val) return { name: h.name, status: 'pass' as const, detail: `Present: ${val.substring(0, 80)}`, risk: 'None' };
+    return { name: h.name, status: 'fail' as const, detail: `Missing — ${h.desc}`, risk: 'Medium' };
   });
-
-  await Promise.all(checks);
-  return results.sort((a, b) => (a.accessible === b.accessible ? 0 : a.accessible ? -1 : 1));
 }
 
-// ─── Admin Panel Detection ──────────────────────────────────────────────────
-async function checkAdminPanels(origin: string) {
-  const results: Array<{ path: string; name: string; accessible: boolean; status: number }> = [];
+async function checkExposedFiles(origin: string): Promise<CheckResult[]> {
+  const results: CheckResult[] = [];
+  const batches: typeof SENSITIVE_PATHS[] = [];
+  for (let i = 0; i < SENSITIVE_PATHS.length; i += 15) batches.push(SENSITIVE_PATHS.slice(i, i + 15));
 
-  const checks = ADMIN_PANELS.map(async (panel) => {
-    const res = await quickFetch(`${origin}${panel.path}`);
-    const status = res?.status || 0;
-    const accessible = status === 200 || status === 301 || status === 302;
-    results.push({ path: panel.path, name: panel.name, accessible, status });
+  for (const batch of batches) {
+    const checks = batch.map(async (f) => {
+      const r = await quickFetch(`${origin}${f.path}`, 'HEAD', 4000);
+      const s = r?.status || 0;
+      if (s === 200) {
+        results.push({ name: f.path, status: 'fail', detail: `ACCESSIBLE (${s}) — ${f.desc}`, risk: f.risk });
+      } else if (s === 403) {
+        results.push({ name: f.path, status: 'warn', detail: `Blocked (403) but exists — ${f.desc}`, risk: 'Low' });
+      } else {
+        results.push({ name: f.path, status: 'pass', detail: 'Not found (secure)', risk: 'None' });
+      }
+    });
+    await Promise.all(checks);
+  }
+  return results;
+}
+
+async function checkAdminPanels(origin: string): Promise<CheckResult[]> {
+  const results: CheckResult[] = [];
+  const checks = ADMIN_PANELS.map(async (p) => {
+    const r = await quickFetch(`${origin}${p.path}`, 'HEAD', 4000);
+    const s = r?.status || 0;
+    if (s === 200 || s === 301 || s === 302) {
+      results.push({ name: `${p.path} (${p.name})`, status: 'fail', detail: `Accessible (${s}) — admin interface exposed`, risk: 'High' });
+    } else {
+      results.push({ name: `${p.path} (${p.name})`, status: 'pass', detail: 'Not accessible (secure)', risk: 'None' });
+    }
   });
-
   await Promise.all(checks);
   return results;
 }
 
-// ─── Cookie Security ────────────────────────────────────────────────────────
-function analyzeCookies(response: Response) {
-  const setCookieHeaders = response.headers.getSetCookie?.() || [];
-  const cookies: Array<{
-    name: string; secure: boolean; httpOnly: boolean; sameSite: string;
-    issues: string[];
-  }> = [];
-
-  for (const cookieStr of setCookieHeaders) {
-    const parts = cookieStr.split(';').map(p => p.trim());
-    const nameValue = parts[0]?.split('=');
-    const name = nameValue?.[0] || 'unknown';
-    const lower = cookieStr.toLowerCase();
-
+function checkCookies(response: Response): CheckResult[] {
+  const results: CheckResult[] = [];
+  const setCookies = response.headers.getSetCookie?.() || [];
+  if (setCookies.length === 0) {
+    results.push({ name: 'Cookie Presence', status: 'info', detail: 'No cookies set on initial page load', risk: 'None' });
+    return results;
+  }
+  for (const c of setCookies) {
+    const name = c.split('=')[0] || 'unknown';
+    const lower = c.toLowerCase();
     const secure = lower.includes('secure');
     const httpOnly = lower.includes('httponly');
-    const sameSiteMatch = lower.match(/samesite=(strict|lax|none)/i);
-    const sameSite = sameSiteMatch ? sameSiteMatch[1] : 'Not Set';
-
+    const sameSite = lower.match(/samesite=(strict|lax|none)/i);
     const issues: string[] = [];
-    if (!secure) issues.push('Missing Secure flag — cookie sent over HTTP');
-    if (!httpOnly) issues.push('Missing HttpOnly flag — accessible to JavaScript/XSS');
-    if (sameSite === 'Not Set' || sameSite.toLowerCase() === 'none') {
-      issues.push('SameSite not set or None — vulnerable to CSRF');
+    if (!secure) issues.push('No Secure flag');
+    if (!httpOnly) issues.push('No HttpOnly flag');
+    if (!sameSite || sameSite[1].toLowerCase() === 'none') issues.push('SameSite missing/None');
+    if (issues.length === 0) {
+      results.push({ name: `Cookie: ${name}`, status: 'pass', detail: 'Secure + HttpOnly + SameSite set', risk: 'None' });
+    } else {
+      results.push({ name: `Cookie: ${name}`, status: 'fail', detail: issues.join(', '), risk: 'Medium' });
     }
-
-    cookies.push({ name, secure, httpOnly, sameSite, issues });
   }
-  return cookies;
+  return results;
 }
 
-// ─── Information Disclosure ─────────────────────────────────────────────────
-function checkInfoDisclosure(response: Response) {
-  const findings: Array<{ header: string; value: string; risk: string; desc: string }> = [];
-
-  const server = response.headers.get('server');
-  if (server) {
-    findings.push({ header: 'Server', value: server, risk: 'Medium', desc: 'Server software and version exposed — helps attackers target known vulnerabilities' });
-  }
-  const powered = response.headers.get('x-powered-by');
-  if (powered) {
-    findings.push({ header: 'X-Powered-By', value: powered, risk: 'Medium', desc: 'Technology stack exposed — reveals framework/language version' });
-  }
-  const aspVersion = response.headers.get('x-aspnet-version');
-  if (aspVersion) {
-    findings.push({ header: 'X-AspNet-Version', value: aspVersion, risk: 'Medium', desc: 'ASP.NET version exposed' });
-  }
-  return findings;
-}
-
-// ─── CORS Misconfiguration ──────────────────────────────────────────────────
-function checkCORS(response: Response) {
+function checkCORS(response: Response): CheckResult[] {
   const acao = response.headers.get('access-control-allow-origin');
   const acac = response.headers.get('access-control-allow-credentials');
-
-  if (!acao) return { misconfigured: false, details: 'No CORS headers present (default restrictive policy)', origin: null };
-  if (acao === '*') {
-    return { misconfigured: true, details: 'Access-Control-Allow-Origin is set to * (wildcard) — any website can make requests to this server', origin: '*' };
-  }
-  if (acao === '*' && acac === 'true') {
-    return { misconfigured: true, details: 'CRITICAL: Wildcard origin with credentials allowed — full cross-origin access with authentication', origin: '*' };
-  }
-  return { misconfigured: false, details: `CORS restricted to: ${acao}`, origin: acao };
+  if (!acao) return [{ name: 'CORS Policy', status: 'pass', detail: 'No CORS headers — restrictive by default', risk: 'None' }];
+  if (acao === '*' && acac === 'true') return [{ name: 'CORS Policy', status: 'fail', detail: 'CRITICAL: Wildcard + credentials allowed', risk: 'Critical' }];
+  if (acao === '*') return [{ name: 'CORS Policy', status: 'warn', detail: 'Wildcard origin (*) — any site can read responses', risk: 'Medium' }];
+  return [{ name: 'CORS Policy', status: 'pass', detail: `Restricted to: ${acao}`, risk: 'None' }];
 }
 
-// ─── Technology Fingerprint ─────────────────────────────────────────────────
-function fingerprintTech(html: string, response: Response) {
-  const htmlLower = html.toLowerCase();
-  const detected: Array<{ name: string; category: string; evidence: string }> = [];
-  const seen = new Set<string>();
+function checkInfoDisclosure(response: Response): CheckResult[] {
+  const results: CheckResult[] = [];
+  const checks = [
+    { header: 'server', desc: 'Server software exposed' },
+    { header: 'x-powered-by', desc: 'Technology stack exposed' },
+    { header: 'x-aspnet-version', desc: 'ASP.NET version exposed' },
+    { header: 'x-generator', desc: 'Generator/CMS version exposed' },
+    { header: 'x-debug', desc: 'Debug header exposed' },
+    { header: 'x-runtime', desc: 'Runtime info exposed' },
+  ];
+  for (const c of checks) {
+    const val = response.headers.get(c.header);
+    if (val) results.push({ name: c.header, status: 'fail', detail: `${val} — ${c.desc}`, risk: 'Medium' });
+    else results.push({ name: c.header, status: 'pass', detail: 'Not exposed (secure)', risk: 'None' });
+  }
+  return results;
+}
 
-  for (const tech of TECH_SIGNATURES) {
-    if (seen.has(tech.name)) continue;
-    for (const pattern of tech.patterns) {
-      if (htmlLower.includes(pattern.toLowerCase())) {
-        detected.push({ name: tech.name, category: tech.category, evidence: pattern });
-        seen.add(tech.name);
-        break;
+async function checkHTTPMethods(origin: string): Promise<CheckResult[]> {
+  const results: CheckResult[] = [];
+  for (const method of DANGEROUS_HTTP_METHODS) {
+    try {
+      const r = await quickFetch(origin, method, 4000);
+      const s = r?.status || 0;
+      if (s === 200 || s === 204) {
+        results.push({ name: `HTTP ${method}`, status: 'fail', detail: `Method allowed (${s}) — potential security risk`, risk: 'Medium' });
+      } else {
+        results.push({ name: `HTTP ${method}`, status: 'pass', detail: `Blocked (${s || 'timeout'})`, risk: 'None' });
       }
+    } catch {
+      results.push({ name: `HTTP ${method}`, status: 'pass', detail: 'Blocked', risk: 'None' });
     }
   }
+  return results;
+}
 
-  // Check headers for Cloudflare
-  const cfRay = response.headers.get('cf-ray');
-  if (cfRay && !seen.has('Cloudflare')) {
-    detected.push({ name: 'Cloudflare', category: 'CDN/Security', evidence: 'cf-ray header' });
+function analyzeHTML(html: string): CheckResult[] {
+  const results: CheckResult[] = [];
+  const lower = html.toLowerCase();
+
+  // Mixed content
+  const httpInHttps = (lower.match(/src=["']http:\/\//g) || []).length;
+  results.push(httpInHttps > 0
+    ? { name: 'Mixed Content', status: 'fail', detail: `${httpInHttps} HTTP resources on HTTPS page`, risk: 'Medium' }
+    : { name: 'Mixed Content', status: 'pass', detail: 'No mixed content detected', risk: 'None' }
+  );
+
+  // Inline scripts
+  const inlineScripts = (lower.match(/<script(?![^>]*src)[^>]*>/g) || []).length;
+  results.push(inlineScripts > 3
+    ? { name: 'Inline Scripts', status: 'warn', detail: `${inlineScripts} inline scripts — CSP bypass risk`, risk: 'Low' }
+    : { name: 'Inline Scripts', status: 'pass', detail: `${inlineScripts} inline scripts`, risk: 'None' }
+  );
+
+  // Forms without HTTPS
+  const insecureForms = (lower.match(/action=["']http:\/\//g) || []).length;
+  results.push(insecureForms > 0
+    ? { name: 'Insecure Forms', status: 'fail', detail: `${insecureForms} forms submit over HTTP`, risk: 'High' }
+    : { name: 'Insecure Forms', status: 'pass', detail: 'All forms use secure endpoints', risk: 'None' }
+  );
+
+  // Password fields without autocomplete=off
+  const pwdFields = (lower.match(/type=["']password/g) || []).length;
+  results.push(pwdFields > 0
+    ? { name: 'Password Fields', status: 'info', detail: `${pwdFields} password fields found — verify autocomplete=off`, risk: 'Low' }
+    : { name: 'Password Fields', status: 'pass', detail: 'No password fields on page', risk: 'None' }
+  );
+
+  // External iframes
+  const iframes = (lower.match(/<iframe/g) || []).length;
+  results.push(iframes > 0
+    ? { name: 'Iframes', status: 'warn', detail: `${iframes} iframes detected — verify trusted sources`, risk: 'Low' }
+    : { name: 'Iframes', status: 'pass', detail: 'No iframes detected', risk: 'None' }
+  );
+
+  // Base tag hijacking
+  const baseTag = lower.includes('<base ');
+  results.push(baseTag
+    ? { name: 'Base Tag', status: 'warn', detail: 'Base tag found — verify it points to correct origin', risk: 'Low' }
+    : { name: 'Base Tag', status: 'pass', detail: 'No base tag (default behavior)', risk: 'None' }
+  );
+
+  // Meta generator
+  const genMatch = html.match(/meta[^>]*name=["']generator["'][^>]*content=["']([^"']+)/i);
+  results.push(genMatch
+    ? { name: 'Generator Meta', status: 'fail', detail: `CMS version disclosed: ${genMatch[1]}`, risk: 'Medium' }
+    : { name: 'Generator Meta', status: 'pass', detail: 'No generator meta tag', risk: 'None' }
+  );
+
+  // Email addresses exposed
+  const emails = html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+  const uniqueEmails = [...new Set(emails)];
+  results.push(uniqueEmails.length > 0
+    ? { name: 'Exposed Emails', status: 'warn', detail: `${uniqueEmails.length} email(s) in HTML — spam/phishing risk`, risk: 'Low' }
+    : { name: 'Exposed Emails', status: 'pass', detail: 'No email addresses exposed', risk: 'None' }
+  );
+
+  // Source maps
+  const sourceMaps = lower.includes('sourcemappingurl');
+  results.push(sourceMaps
+    ? { name: 'Source Maps', status: 'warn', detail: 'Source maps detected — source code may be readable', risk: 'Low' }
+    : { name: 'Source Maps', status: 'pass', detail: 'No source maps exposed', risk: 'None' }
+  );
+
+  // HTML comments with sensitive info
+  const comments = (html.match(/<!--[\s\S]*?-->/g) || []);
+  const suspiciousComments = comments.filter(c => /password|secret|key|todo|hack|bug|fix|debug/i.test(c));
+  results.push(suspiciousComments.length > 0
+    ? { name: 'Suspicious Comments', status: 'warn', detail: `${suspiciousComments.length} comments with sensitive keywords`, risk: 'Low' }
+    : { name: 'HTML Comments', status: 'pass', detail: 'No suspicious comments found', risk: 'None' }
+  );
+
+  return results;
+}
+
+function scanTrackers(html: string) {
+  const lower = html.toLowerCase();
+  const found: Array<{ name: string; type: string }> = [];
+  const seen = new Set<string>();
+  for (const t of KNOWN_TRACKERS) {
+    if (seen.has(t.name)) continue;
+    for (const p of t.patterns) { if (lower.includes(p.toLowerCase())) { found.push({ name: t.name, type: t.type }); seen.add(t.name); break; } }
   }
+  for (const s of INLINE_TRACKER_SIGS) {
+    if (seen.has(s.name)) continue;
+    if (lower.includes(s.pattern.toLowerCase())) { found.push({ name: s.name, type: s.type }); seen.add(s.name); }
+  }
+  return { found: found.length, list: found };
+}
 
-  return detected;
+function fingerprintTech(html: string, response: Response) {
+  const lower = html.toLowerCase();
+  const det: Array<{ name: string; category: string }> = [];
+  const seen = new Set<string>();
+  for (const t of TECH_SIGNATURES) {
+    if (seen.has(t.name)) continue;
+    for (const p of t.patterns) {
+      const headerVals = Array.from(response.headers.entries()).map(([,v]) => v).join(' ').toLowerCase();
+      if (lower.includes(p.toLowerCase()) || headerVals.includes(p.toLowerCase())) { det.push({ name: t.name, category: t.category }); seen.add(t.name); break; }
+    }
+  }
+  return det;
+}
+
+async function checkGPC(origin: string) {
+  try {
+    const c = new AbortController(); const t = setTimeout(() => c.abort(), 5000);
+    const r = await fetch(`${origin}/.well-known/gpc.json`, { method: 'GET', signal: c.signal, redirect: 'follow', headers: { 'User-Agent': UA } });
+    clearTimeout(t);
+    if (!r.ok) return { supported: false, details: 'No GPC support declared — required in 10+ US states' };
+    const json = await r.json();
+    return json.gpc === true ? { supported: true, details: 'GPC support declared' } : { supported: false, details: 'gpc.json exists but set to false' };
+  } catch { return { supported: false, details: 'No GPC support declared' }; }
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  RESULT TYPES
+//  MAIN SCAN
 // ═══════════════════════════════════════════════════════════════
-
-export type DeepScanResult = {
-  url: string;
-  grade: string;
-  score: number;
-  headers: Array<{ name: string; present: boolean; value: string }>;
-  gpc: { supported: boolean; wellKnownFound: boolean; details: string };
-  trackers: { found: number; list: Array<{ name: string; domain: string; type: string }> };
-  exposedFiles: Array<{ path: string; accessible: boolean; risk: string; desc: string; status: number }>;
-  adminPanels: Array<{ path: string; name: string; accessible: boolean; status: number }>;
-  cookies: Array<{ name: string; secure: boolean; httpOnly: boolean; sameSite: string; issues: string[] }>;
-  infoDisclosure: Array<{ header: string; value: string; risk: string; desc: string }>;
-  cors: { misconfigured: boolean; details: string; origin: string | null };
-  technologies: Array<{ name: string; category: string; evidence: string }>;
-  timestamp: string;
-};
-
-// ═══════════════════════════════════════════════════════════════
-//  MAIN SCAN FUNCTION
-// ═══════════════════════════════════════════════════════════════
-
 export async function performDeepScan(targetUrl: string): Promise<DeepScanResult> {
-  if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
-    targetUrl = `https://${targetUrl}`;
-  }
-
+  if (!targetUrl.startsWith('http')) targetUrl = `https://${targetUrl}`;
   const origin = new URL(targetUrl).origin;
 
-  // Phase 1: Fetch the page
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
-
+  const tid = setTimeout(() => controller.abort(), 15000);
   let response: Response;
   try {
-    response = await fetch(targetUrl, {
-      method: 'GET', signal: controller.signal, redirect: 'follow',
-      headers: {
-        'User-Agent': BROWSER_UA,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Sec-GPC': '1',
-      }
-    });
-    clearTimeout(timeoutId);
-  } catch (err: any) {
-    clearTimeout(timeoutId);
-    throw new Error(`Failed to reach the website (${err.message}). Please check the URL and try again.`);
-  }
+    response = await fetch(targetUrl, { method: 'GET', signal: controller.signal, redirect: 'follow', headers: { 'User-Agent': UA, 'Sec-GPC': '1' } });
+    clearTimeout(tid);
+  } catch (err: any) { clearTimeout(tid); throw new Error(`Cannot reach website: ${err.message}`); }
 
   const html = await response.text();
 
-  // Phase 2: Run ALL checks in parallel
-  const [gpcResult, trackerResult, exposedFiles, adminPanels] = await Promise.all([
-    checkGPC(targetUrl),
-    scanTrackers(targetUrl, html),
-    checkExposedFiles(origin),
-    checkAdminPanels(origin),
+  // Run all checks in parallel
+  const [exposedFiles, adminPanels, httpMethods, gpc] = await Promise.all([
+    checkExposedFiles(origin), checkAdminPanels(origin), checkHTTPMethods(origin), checkGPC(origin)
   ]);
 
-  // Synchronous checks
-  const cookies = analyzeCookies(response);
-  const infoDisclosure = checkInfoDisclosure(response);
+  const headers = checkHeaders(response);
+  const cookies = checkCookies(response);
   const cors = checkCORS(response);
+  const infoDisclosure = checkInfoDisclosure(response);
+  const htmlAnalysis = analyzeHTML(html);
+  const trackers = scanTrackers(html);
   const technologies = fingerprintTech(html, response);
 
-  // Phase 3: Security Headers
-  const headersToCheck = [
-    'strict-transport-security', 'x-frame-options', 'x-content-type-options',
-    'content-security-policy', 'referrer-policy', 'permissions-policy'
-  ];
+  // Count totals
+  const allChecks = [...headers, ...exposedFiles, ...adminPanels, ...cookies, ...cors, ...infoDisclosure, ...httpMethods, ...htmlAnalysis];
+  const passed = allChecks.filter(c => c.status === 'pass').length;
+  const failed = allChecks.filter(c => c.status === 'fail').length;
+  const warnings = allChecks.filter(c => c.status === 'warn').length;
 
-  const headerResults: Array<{ name: string; present: boolean; value: string }> = [];
-  let headerScore = 100;
-  const penaltyPerHeader = 100 / headersToCheck.length;
-
-  for (const headerName of headersToCheck) {
-    const headerValue = response.headers.get(headerName);
-    const isPresent = headerValue !== null && headerValue !== '';
-    if (!isPresent) headerScore -= penaltyPerHeader;
-    headerResults.push({ name: headerName, present: isPresent, value: headerValue || 'Missing' });
+  // Score: start at 100, deduct per failure
+  let score = 100;
+  for (const c of allChecks) {
+    if (c.status === 'fail') {
+      if (c.risk === 'Critical') score -= 8;
+      else if (c.risk === 'High') score -= 5;
+      else if (c.risk === 'Medium') score -= 3;
+      else score -= 1;
+    }
+    if (c.status === 'warn') score -= 0.5;
   }
-
-  // Phase 4: Scoring
-  // Headers: 25% | Vulnerabilities: 40% | Cookies/CORS: 15% | GPC+Trackers: 20%
-  const headerComponent = (headerScore / 100) * 25;
-
-  // Vulnerability score (exposed files + admin panels + info disclosure)
-  const exposedCritical = exposedFiles.filter(f => f.accessible && (f.risk === 'Critical' || f.risk === 'High')).length;
-  const exposedAdmin = adminPanels.filter(p => p.accessible).length;
-  const infoLeaks = infoDisclosure.length;
-  const vulnPenalty = Math.min((exposedCritical * 15) + (exposedAdmin * 5) + (infoLeaks * 3), 40);
-  const vulnComponent = 40 - vulnPenalty;
-
-  // Cookie/CORS score
-  const cookieIssues = cookies.reduce((sum, c) => sum + c.issues.length, 0);
-  const corsPenalty = cors.misconfigured ? 8 : 0;
-  const cookieCorsComponent = Math.max(15 - (cookieIssues * 2) - corsPenalty, 0);
-
-  // GPC + Trackers
-  const gpcComponent = gpcResult.supported ? 10 : 0;
-  const trackerPenalty = Math.min(trackerResult.found * 2.5, 10);
-  const trackerGpcComponent = (10 - trackerPenalty) + gpcComponent;
-
-  const totalScore = Math.max(0, Math.min(100, Math.round(headerComponent + vulnComponent + cookieCorsComponent + trackerGpcComponent)));
+  if (!gpc.supported) score -= 3;
+  score -= trackers.found * 2;
+  score = Math.max(0, Math.min(100, Math.round(score)));
 
   let grade = 'F';
-  if (totalScore >= 91) grade = 'A';
-  else if (totalScore >= 71) grade = 'B';
-  else if (totalScore >= 51) grade = 'C';
-  else if (totalScore >= 31) grade = 'D';
+  if (score >= 91) grade = 'A';
+  else if (score >= 71) grade = 'B';
+  else if (score >= 51) grade = 'C';
+  else if (score >= 31) grade = 'D';
 
   return {
-    url: targetUrl, grade, score: totalScore,
-    headers: headerResults, gpc: gpcResult, trackers: trackerResult,
-    exposedFiles, adminPanels, cookies, infoDisclosure, cors, technologies,
+    url: targetUrl, grade, score,
+    totalChecks: allChecks.length, passed, failed, warnings,
+    headers, exposedFiles, adminPanels, cookies, cors,
+    infoDisclosure, httpMethods, technologies,
+    trackers, gpc, htmlAnalysis,
     timestamp: new Date().toISOString()
   };
 }

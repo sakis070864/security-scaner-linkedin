@@ -31,7 +31,11 @@ export async function POST(request: Request) {
     }
 
     // Save lead to Google Sheets (with DeepSearch source tag)
-    saveLeadToSheet({ email, url, grade: result.grade, score: result.score }).catch(() => {});
+    try {
+      await saveLeadToSheet({ email, url, grade: result.grade, score: result.score });
+    } catch (sheetErr) {
+      console.error('Google Sheets save failed:', sheetErr);
+    }
 
     return NextResponse.json({
       token,

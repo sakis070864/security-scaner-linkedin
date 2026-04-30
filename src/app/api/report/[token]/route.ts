@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getScan } from '@/lib/emailValidator';
+import { decodeToken } from '@/lib/emailValidator';
+import { performDeepScan } from '@/lib/scanner';
 
 export async function GET(
   request: Request,
@@ -11,18 +12,21 @@ export async function GET(
     return NextResponse.json({ error: 'Token required' }, { status: 400 });
   }
 
-  const scan = getScan(token);
-  if (!scan) {
-    return NextResponse.json({ error: 'Report not found or expired' }, { status: 404 });
+  // Decode the token to get email + url
+  const payload = decodeToken(token);
+  if (!payload) {
+    return NextResponse.json({ error: 'Report link expired or invalid. Please run a new scan.' }, { status: 404 });
   }
 
-  if (!scan.verified) {
-    return NextResponse.json({ error: 'Report not yet verified. Please check your email.' }, { status: 403 });
+  // Re-run the scan (fresh results)
+  try {
+    const result = await performDeepScan(payload.url);
+    return NextResponse.json({
+      result,
+      email: payload.email,
+      url: payload.url,
+    });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Scan failed' }, { status: 500 });
   }
-
-  return NextResponse.json({
-    result: scan.result,
-    email: scan.email,
-    url: scan.url,
-  });
 }

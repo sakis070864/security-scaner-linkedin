@@ -1,10 +1,9 @@
 // ═══════════════════════════════════════════════════════════════
-//  EMAIL VALIDATION & TOKEN STORE
+//  EMAIL VALIDATION & TOKEN SYSTEM
+//  Uses base64-encoded tokens instead of in-memory storage
+//  (Vercel serverless = no persistent memory between requests)
 // ═══════════════════════════════════════════════════════════════
 
-import { DeepScanResult } from './scanner';
-
-// Free email providers that are NOT corporate
 const FREE_EMAIL_PROVIDERS = new Set([
   'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'aol.com',
   'icloud.com', 'mail.com', 'protonmail.com', 'proton.me', 'zoho.com',
@@ -21,66 +20,39 @@ export function isCorporateEmail(email: string): boolean {
   return !FREE_EMAIL_PROVIDERS.has(domain);
 }
 
-export function getEmailDomain(email: string): string {
-  return email.split('@')[1]?.toLowerCase() || '';
-}
+// ─── Token Encoding/Decoding ────────────────────────────────────────────────
+// Token = base64url({ email, url, exp, source })
+// This is NOT a security mechanism — it's a convenience token.
+// The "gate" is the email verification step itself.
 
-// ─── Token-Based Results Store ──────────────────────────────────────────────
-// In-memory store (Vercel serverless = ephemeral, but sufficient for short-lived tokens)
-// For production scale, use Redis/KV store
-
-type StoredScan = {
-  token: string;
+type TokenPayload = {
   email: string;
   url: string;
-  result: DeepScanResult;
-  verified: boolean;
-  createdAt: number;
-  expiresAt: number;
+  exp: number; // expiry timestamp
   source: 'corporate' | 'admin' | 'free';
 };
 
-// Global store (persists across requests in same serverless instance)
-const scanStore = new Map<string, StoredScan>();
-
-export function generateToken(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let token = '';
-  for (let i = 0; i < 32; i++) {
-    token += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return token;
-}
-
-export function storeScan(token: string, email: string, url: string, result: DeepScanResult, source: 'corporate' | 'admin' | 'free'): void {
-  // Clean expired entries
-  const now = Date.now();
-  for (const [key, scan] of scanStore) {
-    if (scan.expiresAt < now) scanStore.delete(key);
-  }
-
-  scanStore.set(token, {
-    token, email, url, result,
-    verified: source === 'admin', // Admin-generated links are pre-verified
-    createdAt: now,
-    expiresAt: now + (48 * 60 * 60 * 1000), // 48 hours expiry
+export function createToken(email: string, url: string, source: 'corporate' | 'admin' | 'free'): string {
+  const payload: TokenPayload = {
+    email,
+    url,
+    exp: Date.now() + (48 * 60 * 60 * 1000), // 48 hours
     source,
-  });
+  };
+  // Base64url encode
+  const json = JSON.stringify(payload);
+  const base64 = Buffer.from(json).toString('base64url');
+  return base64;
 }
 
-export function getScan(token: string): StoredScan | null {
-  const scan = scanStore.get(token);
-  if (!scan) return null;
-  if (scan.expiresAt < Date.now()) {
-    scanStore.delete(token);
+export function decodeToken(token: string): TokenPayload | null {
+  try {
+    const json = Buffer.from(token, 'base64url').toString('utf-8');
+    const payload: TokenPayload = JSON.parse(json);
+    // Check expiry
+    if (payload.exp < Date.now()) return null;
+    return payload;
+  } catch {
     return null;
   }
-  return scan;
-}
-
-export function verifyScan(token: string): boolean {
-  const scan = scanStore.get(token);
-  if (!scan) return false;
-  scan.verified = true;
-  return true;
 }

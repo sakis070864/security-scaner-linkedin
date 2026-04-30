@@ -64,7 +64,7 @@ function CheckSection({ title, icon, checks, defaultOpen = false }: { title: str
   );
 }
 
-// ─── PDF Generator ──────────────────────────────────────────────────────────
+// ─── PDF Generator (Print-Friendly: white bg, dark text, colored status) ─────
 async function generatePDF(result: DeepScanResult) {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF('p', 'mm', 'a4');
@@ -72,77 +72,109 @@ async function generatePDF(result: DeepScanResult) {
   const cw = pw - margin * 2;
   let y = 20;
 
-  const colors = {
-    bg: [3, 7, 18], title: [255, 255, 255], red: [239, 68, 68],
-    green: [34, 197, 94], yellow: [234, 179, 8], blue: [59, 130, 246],
-    gray: [148, 163, 184], darkGray: [30, 41, 59], text: [203, 213, 225],
+  // Print-friendly palette: white bg, dark text, colored accents
+  const C = {
+    black: [20, 20, 20] as number[], dark: [50, 50, 50] as number[], mid: [120, 120, 120] as number[],
+    light: [200, 200, 200] as number[], sectionBg: [240, 242, 245] as number[],
+    red: [220, 38, 38] as number[], green: [22, 163, 74] as number[],
+    yellow: [180, 130, 0] as number[], blue: [37, 99, 235] as number[],
+    orange: [234, 88, 12] as number[], purple: [124, 58, 237] as number[],
   };
 
-  // Background
-  doc.setFillColor(colors.bg[0], colors.bg[1], colors.bg[2]);
-  doc.rect(0, 0, pw, 297, 'F');
-
-  // Header bar
-  doc.setFillColor(colors.darkGray[0], colors.darkGray[1], colors.darkGray[2]);
-  doc.rect(0, 0, pw, 50, 'F');
-  doc.setFontSize(22); doc.setFont('helvetica', 'bold');
-  doc.setTextColor(255, 255, 255);
-  doc.text('AthanDeepScan', margin, 22);
+  // ── Header ──
+  doc.setDrawColor(C.light[0], C.light[1], C.light[2]);
+  doc.setFontSize(20); doc.setFont('helvetica', 'bold');
+  doc.setTextColor(C.black[0], C.black[1], C.black[2]);
+  doc.text('AthanDeepScan', margin, y);
   doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-  doc.setTextColor(colors.gray[0], colors.gray[1], colors.gray[2]);
-  doc.text('Deep Penetration Security Report', margin, 30);
-  doc.text(result.url, margin, 37);
-  doc.text(new Date(result.timestamp).toLocaleDateString(), margin, 44);
+  doc.setTextColor(C.red[0], C.red[1], C.red[2]);
+  doc.text('Deep Penetration Security Report', margin + 60, y);
+  y += 6;
+  doc.setFontSize(9); doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]);
+  doc.text(`${result.url}  |  ${new Date(result.timestamp).toLocaleDateString()}`, margin, y);
+  y += 3;
+  doc.setDrawColor(C.light[0], C.light[1], C.light[2]);
+  doc.line(margin, y, pw - margin, y);
+  y += 8;
 
-  // Grade
-  y = 60;
-  const gc = result.grade === 'A' ? colors.green : result.grade === 'B' ? colors.blue : result.grade === 'C' ? colors.yellow : colors.red;
-  doc.setFillColor(colors.darkGray[0], colors.darkGray[1], colors.darkGray[2]);
-  doc.roundedRect(margin, y, cw, 30, 3, 3, 'F');
-  doc.setFontSize(36); doc.setFont('helvetica', 'bold');
+  // ── Grade Box ──
+  const gc = result.grade === 'A' ? C.green : result.grade === 'B' ? C.blue : result.grade === 'C' ? C.yellow : C.red;
+  doc.setFillColor(C.sectionBg[0], C.sectionBg[1], C.sectionBg[2]);
+  doc.roundedRect(margin, y, cw, 22, 3, 3, 'F');
+  doc.setFontSize(28); doc.setFont('helvetica', 'bold');
   doc.setTextColor(gc[0], gc[1], gc[2]);
-  doc.text(result.grade, margin + 15, y + 22);
-  doc.setFontSize(12); doc.setTextColor(255, 255, 255);
-  doc.text(`Score: ${result.score}/100`, margin + 40, y + 15);
-  doc.setFontSize(9); doc.setTextColor(colors.gray[0], colors.gray[1], colors.gray[2]);
-  doc.text(`${result.totalChecks} checks | ${result.passed} passed | ${result.failed} failed | ${result.warnings} warnings`, margin + 40, y + 23);
-  y += 38;
+  doc.text(result.grade, margin + 12, y + 16);
+  doc.setFontSize(12); doc.setTextColor(C.black[0], C.black[1], C.black[2]);
+  doc.text(`Score: ${result.score}/100`, margin + 35, y + 12);
+  doc.setFontSize(8); doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]);
+  doc.text(`${result.totalChecks} checks  |  `, margin + 35, y + 18);
+  // Colored stats
+  const statsX = margin + 35;
+  doc.setTextColor(C.green[0], C.green[1], C.green[2]);
+  doc.text(`${result.passed} passed`, statsX + 22, y + 18);
+  doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]);
+  doc.text('  |  ', statsX + 40, y + 18);
+  doc.setTextColor(C.red[0], C.red[1], C.red[2]);
+  doc.text(`${result.failed} failed`, statsX + 45, y + 18);
+  doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]);
+  doc.text('  |  ', statsX + 62, y + 18);
+  doc.setTextColor(C.yellow[0], C.yellow[1], C.yellow[2]);
+  doc.text(`${result.warnings} warnings`, statsX + 67, y + 18);
+  y += 30;
 
-  // Helper: add section
+  // ── Helper: new page ──
+  function newPage() { doc.addPage(); y = 20; }
+
+  // ── Helper: add section ──
   function addSection(title: string, checks: CheckResult[]) {
     const fails = checks.filter(c => c.status === 'fail').length;
-    // Section header
-    if (y > 265) { doc.addPage(); doc.setFillColor(colors.bg[0], colors.bg[1], colors.bg[2]); doc.rect(0, 0, pw, 297, 'F'); y = 20; }
-    doc.setFillColor(colors.darkGray[0], colors.darkGray[1], colors.darkGray[2]);
+    const warns = checks.filter(c => c.status === 'warn').length;
+
+    if (y > 260) newPage();
+    // Section header bar
+    doc.setFillColor(C.sectionBg[0], C.sectionBg[1], C.sectionBg[2]);
     doc.roundedRect(margin, y, cw, 8, 2, 2, 'F');
-    doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
-    doc.text(`${title}  (${checks.length} checks, ${fails} failed)`, margin + 3, y + 6);
-    y += 12;
+    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+    doc.setTextColor(C.black[0], C.black[1], C.black[2]);
+    doc.text(title, margin + 3, y + 5.5);
+    // Stats in header
+    doc.setFontSize(7); doc.setFont('helvetica', 'normal');
+    const statsStr = `${checks.length} checks`;
+    doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]);
+    doc.text(statsStr, margin + cw - 50, y + 5.5);
+    if (fails > 0) { doc.setTextColor(C.red[0], C.red[1], C.red[2]); doc.text(`${fails} FAIL`, margin + cw - 30, y + 5.5); }
+    if (warns > 0) { doc.setTextColor(C.yellow[0], C.yellow[1], C.yellow[2]); doc.text(`${warns} WARN`, margin + cw - 15, y + 5.5); }
+    y += 11;
 
     for (const c of checks) {
-      if (y > 280) { doc.addPage(); doc.setFillColor(colors.bg[0], colors.bg[1], colors.bg[2]); doc.rect(0, 0, pw, 297, 'F'); y = 20; }
-      const sc = c.status === 'fail' ? colors.red : c.status === 'warn' ? colors.yellow : c.status === 'pass' ? colors.green : colors.blue;
-      const icon = c.status === 'fail' ? '✗' : c.status === 'warn' ? '!' : c.status === 'pass' ? '✓' : 'i';
-      doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+      if (y > 280) newPage();
+      // Status icon (colored)
+      const sc = c.status === 'fail' ? C.red : c.status === 'warn' ? C.yellow : c.status === 'pass' ? C.green : C.blue;
+      const icon = c.status === 'fail' ? 'FAIL' : c.status === 'warn' ? 'WARN' : c.status === 'pass' ? 'PASS' : 'INFO';
+      doc.setFontSize(6); doc.setFont('helvetica', 'bold');
       doc.setTextColor(sc[0], sc[1], sc[2]);
       doc.text(icon, margin + 2, y);
-      doc.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
-      doc.setFont('helvetica', 'bold');
-      const name = c.name.length > 40 ? c.name.substring(0, 40) + '...' : c.name;
-      doc.text(name, margin + 8, y);
+      // Check name (dark text)
+      doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+      doc.setTextColor(C.black[0], C.black[1], C.black[2]);
+      const name = c.name.length > 45 ? c.name.substring(0, 45) + '...' : c.name;
+      doc.text(name, margin + 14, y);
+      // Risk badge (colored)
       if (c.risk !== 'None') {
+        const rc = c.risk === 'Critical' ? C.red : c.risk === 'High' ? C.orange : c.risk === 'Medium' ? C.yellow : C.blue;
         doc.setFontSize(6); doc.setFont('helvetica', 'normal');
-        doc.setTextColor(sc[0], sc[1], sc[2]);
+        doc.setTextColor(rc[0], rc[1], rc[2]);
         doc.text(`[${c.risk}]`, margin + cw - 15, y);
       }
       y += 3.5;
+      // Detail (gray text)
       doc.setFontSize(6); doc.setFont('helvetica', 'normal');
-      doc.setTextColor(colors.gray[0], colors.gray[1], colors.gray[2]);
-      const detail = c.detail.length > 90 ? c.detail.substring(0, 90) + '...' : c.detail;
-      doc.text(detail, margin + 8, y);
+      doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]);
+      const detail = c.detail.length > 100 ? c.detail.substring(0, 100) + '...' : c.detail;
+      doc.text(detail, margin + 14, y);
       y += 5;
     }
-    y += 3;
+    y += 2;
   }
 
   addSection('Security Headers', result.headers);
@@ -154,43 +186,58 @@ async function generatePDF(result: DeepScanResult) {
   addSection('HTTP Methods', result.httpMethods);
   addSection('HTML Content Analysis', result.htmlAnalysis);
 
-  // Technologies
+  // ── Technologies ──
   if (result.technologies.length > 0) {
-    if (y > 265) { doc.addPage(); doc.setFillColor(colors.bg[0], colors.bg[1], colors.bg[2]); doc.rect(0, 0, pw, 297, 'F'); y = 20; }
-    doc.setFillColor(colors.darkGray[0], colors.darkGray[1], colors.darkGray[2]);
+    if (y > 260) newPage();
+    doc.setFillColor(C.sectionBg[0], C.sectionBg[1], C.sectionBg[2]);
     doc.roundedRect(margin, y, cw, 8, 2, 2, 'F');
-    doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
-    doc.text(`Detected Technologies (${result.technologies.length})`, margin + 3, y + 6);
-    y += 12;
+    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+    doc.setTextColor(C.black[0], C.black[1], C.black[2]);
+    doc.text(`Detected Technologies (${result.technologies.length})`, margin + 3, y + 5.5);
+    y += 11;
     for (const t of result.technologies) {
-      if (y > 280) { doc.addPage(); doc.setFillColor(colors.bg[0], colors.bg[1], colors.bg[2]); doc.rect(0, 0, pw, 297, 'F'); y = 20; }
-      doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
-      doc.text(`• ${t.name} (${t.category})`, margin + 5, y);
+      if (y > 280) newPage();
+      doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+      doc.setTextColor(C.purple[0], C.purple[1], C.purple[2]);
+      doc.text(`• ${t.name}`, margin + 5, y);
+      doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]);
+      doc.text(`(${t.category})`, margin + 5 + doc.getTextWidth(`• ${t.name} `), y);
       y += 5;
     }
-    y += 3;
+    y += 2;
   }
 
-  // Trackers
+  // ── Trackers ──
   if (result.trackers.found > 0) {
-    if (y > 265) { doc.addPage(); doc.setFillColor(colors.bg[0], colors.bg[1], colors.bg[2]); doc.rect(0, 0, pw, 297, 'F'); y = 20; }
-    doc.setFillColor(colors.darkGray[0], colors.darkGray[1], colors.darkGray[2]);
+    if (y > 260) newPage();
+    doc.setFillColor(C.sectionBg[0], C.sectionBg[1], C.sectionBg[2]);
     doc.roundedRect(margin, y, cw, 8, 2, 2, 'F');
-    doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
-    doc.text(`Pre-Consent Trackers (${result.trackers.found})`, margin + 3, y + 6);
-    y += 12;
+    doc.setFontSize(9); doc.setFont('helvetica', 'bold');
+    doc.setTextColor(C.black[0], C.black[1], C.black[2]);
+    doc.text(`Pre-Consent Trackers (${result.trackers.found})`, margin + 3, y + 5.5);
+    y += 11;
     for (const t of result.trackers.list) {
-      if (y > 280) { doc.addPage(); doc.setFillColor(colors.bg[0], colors.bg[1], colors.bg[2]); doc.rect(0, 0, pw, 297, 'F'); y = 20; }
-      doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
-      doc.text(`• ${t.name} — ${t.type}`, margin + 5, y);
+      if (y > 280) newPage();
+      doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+      doc.setTextColor(C.red[0], C.red[1], C.red[2]);
+      doc.text(`• ${t.name}`, margin + 5, y);
+      doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]);
+      doc.text(` — ${t.type}`, margin + 5 + doc.getTextWidth(`• ${t.name}`), y);
       y += 5;
     }
   }
 
-  // Footer on last page
-  doc.setFontSize(7); doc.setFont('helvetica', 'normal');
-  doc.setTextColor(colors.gray[0], colors.gray[1], colors.gray[2]);
-  doc.text('CREATED BY ATHANASIOS (SAKIS) ATHANASOPOULOS — Athan Security', pw / 2, 290, { align: 'center' });
+  // ── Footer on every page ──
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setDrawColor(C.light[0], C.light[1], C.light[2]);
+    doc.line(margin, 285, pw - margin, 285);
+    doc.setFontSize(6); doc.setFont('helvetica', 'normal');
+    doc.setTextColor(C.mid[0], C.mid[1], C.mid[2]);
+    doc.text('CREATED BY ATHANASIOS (SAKIS) ATHANASOPOULOS — Athan Security', margin, 290);
+    doc.text(`Page ${p} of ${totalPages}`, pw - margin, 290, { align: 'right' });
+  }
 
   const domain = new URL(result.url).hostname.replace(/\./g, '-');
   doc.save(`DeepScan-${domain}-${new Date().toISOString().slice(0, 10)}.pdf`);

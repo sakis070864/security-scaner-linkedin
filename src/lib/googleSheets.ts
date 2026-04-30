@@ -35,12 +35,26 @@ export async function saveLeadToSheet(data: {
 
     const sheet = doc.sheetsByIndex[0];
 
+    // Load existing headers or create new ones
+    let headers: string[] = [];
     try {
       await sheet.loadHeaderRow();
+      headers = sheet.headerValues;
     } catch {
-      // No headers yet — create them with the Source column
+      // No headers yet — will create below
+    }
+
+    // If headers exist but missing "Source" column, add it
+    if (headers.length > 0 && !headers.includes('Source')) {
+      const newHeaders = [...headers, 'Source'];
+      await sheet.setHeaderRow(newHeaders);
+    } else if (headers.length === 0) {
+      // Brand new sheet — set all headers
       await sheet.setHeaderRow(['Date', 'Email', 'Website', 'Grade', 'Score', 'Source']);
     }
+
+    // Reload headers after potential update
+    await sheet.loadHeaderRow();
 
     await sheet.addRow({
       Date: new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }),
@@ -54,6 +68,5 @@ export async function saveLeadToSheet(data: {
     console.log(`Lead saved to Google Sheet: ${data.email} — DeepSearch`);
   } catch (error) {
     console.error('Google Sheets Error:', error);
-    // Silent failure — don't block the user
   }
 }

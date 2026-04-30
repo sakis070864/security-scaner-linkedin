@@ -1,5 +1,5 @@
 import { jsPDF } from 'jspdf';
-import { ScanResultData } from './scanner';
+import { DeepScanResult } from './scanner';
 
 // ── Color Palette ──────────────────────────────────────────────────
 const COLORS = {
@@ -87,7 +87,7 @@ function gradeLabel(grade: string): string {
 // ════════════════════════════════════════════════════════════════════
 //  MAIN PDF GENERATOR
 // ════════════════════════════════════════════════════════════════════
-export async function generateComplianceReport(scanData: ScanResultData): Promise<Buffer> {
+export async function generateComplianceReport(scanData: DeepScanResult): Promise<Buffer> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pw = doc.internal.pageSize.getWidth(); // page width
   let y = 0;

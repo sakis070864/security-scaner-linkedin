@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { waitUntil } from '@vercel/functions';
-import { performScan } from '@/lib/scanner';
+import { performDeepScan } from '@/lib/scanner';
 import { generateComplianceReport } from '@/lib/pdfGenerator';
-import { sendReportEmail, sendFailureEmail } from '@/lib/mailer';
+import { sendReportEmail } from '@/lib/mailer';
 
 // Define the shape of the expected payload from LinkedIn Lead Gen Forms
 // Note: Actual LinkedIn webhook payloads can vary based on form configuration.
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
     const runBackgroundJob = async () => {
       try {
         console.log(`[Step 1/4] Starting scan for ${website}...`);
-        const scanData = await performScan(website);
+        const scanData = await performDeepScan(website);
         console.log(`[Step 2/4] Scan COMPLETE. Grade: ${scanData.grade}, Score: ${scanData.score}. Generating PDF...`);
         
         const pdfBuffer = await generateComplianceReport(scanData);
@@ -100,12 +100,8 @@ export async function POST(request: Request) {
       } catch (err: any) {
         console.error(`[PIPELINE FAILED] Step failed for ${email}:`, err.message);
         console.error(`[PIPELINE FAILED] Stack:`, err.stack);
-        try {
-          await sendFailureEmail(email, website, err.message);
-          console.log(`[Recovery] Failure notification sent to ${email}`);
-        } catch (mailErr: any) {
-          console.error(`[CRITICAL] Could not send failure email to ${email}:`, mailErr.message);
-        }
+          console.error(`[PIPELINE FAILED] Could not recover for ${email}`);
+          // sendFailureEmail removed — handle manually
       }
     };
 

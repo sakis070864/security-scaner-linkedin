@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
-import { ShieldAlert, CheckCircle2, XCircle, AlertTriangle, Info, Lock, Loader2 } from 'lucide-react';
+import { useState, useEffect, use, useCallback } from 'react';
+import { ShieldAlert, CheckCircle2, XCircle, AlertTriangle, Info, Loader2, Download } from 'lucide-react';
 
 type CheckResult = { name: string; status: 'pass' | 'fail' | 'warn' | 'info'; detail: string; risk: string };
 type DeepScanResult = {
@@ -64,29 +64,165 @@ function CheckSection({ title, icon, checks, defaultOpen = false }: { title: str
   );
 }
 
+// ─── PDF Generator ──────────────────────────────────────────────────────────
+async function generatePDF(result: DeepScanResult) {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const pw = 210; const margin = 15;
+  const cw = pw - margin * 2;
+  let y = 20;
+
+  const colors = {
+    bg: [3, 7, 18], title: [255, 255, 255], red: [239, 68, 68],
+    green: [34, 197, 94], yellow: [234, 179, 8], blue: [59, 130, 246],
+    gray: [148, 163, 184], darkGray: [30, 41, 59], text: [203, 213, 225],
+  };
+
+  // Background
+  doc.setFillColor(colors.bg[0], colors.bg[1], colors.bg[2]);
+  doc.rect(0, 0, pw, 297, 'F');
+
+  // Header bar
+  doc.setFillColor(colors.darkGray[0], colors.darkGray[1], colors.darkGray[2]);
+  doc.rect(0, 0, pw, 50, 'F');
+  doc.setFontSize(22); doc.setFont('helvetica', 'bold');
+  doc.setTextColor(255, 255, 255);
+  doc.text('AthanDeepScan', margin, 22);
+  doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+  doc.setTextColor(colors.gray[0], colors.gray[1], colors.gray[2]);
+  doc.text('Deep Penetration Security Report', margin, 30);
+  doc.text(result.url, margin, 37);
+  doc.text(new Date(result.timestamp).toLocaleDateString(), margin, 44);
+
+  // Grade
+  y = 60;
+  const gc = result.grade === 'A' ? colors.green : result.grade === 'B' ? colors.blue : result.grade === 'C' ? colors.yellow : colors.red;
+  doc.setFillColor(colors.darkGray[0], colors.darkGray[1], colors.darkGray[2]);
+  doc.roundedRect(margin, y, cw, 30, 3, 3, 'F');
+  doc.setFontSize(36); doc.setFont('helvetica', 'bold');
+  doc.setTextColor(gc[0], gc[1], gc[2]);
+  doc.text(result.grade, margin + 15, y + 22);
+  doc.setFontSize(12); doc.setTextColor(255, 255, 255);
+  doc.text(`Score: ${result.score}/100`, margin + 40, y + 15);
+  doc.setFontSize(9); doc.setTextColor(colors.gray[0], colors.gray[1], colors.gray[2]);
+  doc.text(`${result.totalChecks} checks | ${result.passed} passed | ${result.failed} failed | ${result.warnings} warnings`, margin + 40, y + 23);
+  y += 38;
+
+  // Helper: add section
+  function addSection(title: string, checks: CheckResult[]) {
+    const fails = checks.filter(c => c.status === 'fail').length;
+    // Section header
+    if (y > 265) { doc.addPage(); doc.setFillColor(colors.bg[0], colors.bg[1], colors.bg[2]); doc.rect(0, 0, pw, 297, 'F'); y = 20; }
+    doc.setFillColor(colors.darkGray[0], colors.darkGray[1], colors.darkGray[2]);
+    doc.roundedRect(margin, y, cw, 8, 2, 2, 'F');
+    doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
+    doc.text(`${title}  (${checks.length} checks, ${fails} failed)`, margin + 3, y + 6);
+    y += 12;
+
+    for (const c of checks) {
+      if (y > 280) { doc.addPage(); doc.setFillColor(colors.bg[0], colors.bg[1], colors.bg[2]); doc.rect(0, 0, pw, 297, 'F'); y = 20; }
+      const sc = c.status === 'fail' ? colors.red : c.status === 'warn' ? colors.yellow : c.status === 'pass' ? colors.green : colors.blue;
+      const icon = c.status === 'fail' ? '✗' : c.status === 'warn' ? '!' : c.status === 'pass' ? '✓' : 'i';
+      doc.setFontSize(8); doc.setFont('helvetica', 'bold');
+      doc.setTextColor(sc[0], sc[1], sc[2]);
+      doc.text(icon, margin + 2, y);
+      doc.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
+      doc.setFont('helvetica', 'bold');
+      const name = c.name.length > 40 ? c.name.substring(0, 40) + '...' : c.name;
+      doc.text(name, margin + 8, y);
+      if (c.risk !== 'None') {
+        doc.setFontSize(6); doc.setFont('helvetica', 'normal');
+        doc.setTextColor(sc[0], sc[1], sc[2]);
+        doc.text(`[${c.risk}]`, margin + cw - 15, y);
+      }
+      y += 3.5;
+      doc.setFontSize(6); doc.setFont('helvetica', 'normal');
+      doc.setTextColor(colors.gray[0], colors.gray[1], colors.gray[2]);
+      const detail = c.detail.length > 90 ? c.detail.substring(0, 90) + '...' : c.detail;
+      doc.text(detail, margin + 8, y);
+      y += 5;
+    }
+    y += 3;
+  }
+
+  addSection('Security Headers', result.headers);
+  addSection('Exposed Files & Paths', result.exposedFiles);
+  addSection('Admin Panels', result.adminPanels);
+  addSection('Cookie Security', result.cookies);
+  addSection('CORS Policy', result.cors);
+  addSection('Information Disclosure', result.infoDisclosure);
+  addSection('HTTP Methods', result.httpMethods);
+  addSection('HTML Content Analysis', result.htmlAnalysis);
+
+  // Technologies
+  if (result.technologies.length > 0) {
+    if (y > 265) { doc.addPage(); doc.setFillColor(colors.bg[0], colors.bg[1], colors.bg[2]); doc.rect(0, 0, pw, 297, 'F'); y = 20; }
+    doc.setFillColor(colors.darkGray[0], colors.darkGray[1], colors.darkGray[2]);
+    doc.roundedRect(margin, y, cw, 8, 2, 2, 'F');
+    doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
+    doc.text(`Detected Technologies (${result.technologies.length})`, margin + 3, y + 6);
+    y += 12;
+    for (const t of result.technologies) {
+      if (y > 280) { doc.addPage(); doc.setFillColor(colors.bg[0], colors.bg[1], colors.bg[2]); doc.rect(0, 0, pw, 297, 'F'); y = 20; }
+      doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
+      doc.text(`• ${t.name} (${t.category})`, margin + 5, y);
+      y += 5;
+    }
+    y += 3;
+  }
+
+  // Trackers
+  if (result.trackers.found > 0) {
+    if (y > 265) { doc.addPage(); doc.setFillColor(colors.bg[0], colors.bg[1], colors.bg[2]); doc.rect(0, 0, pw, 297, 'F'); y = 20; }
+    doc.setFillColor(colors.darkGray[0], colors.darkGray[1], colors.darkGray[2]);
+    doc.roundedRect(margin, y, cw, 8, 2, 2, 'F');
+    doc.setFontSize(10); doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
+    doc.text(`Pre-Consent Trackers (${result.trackers.found})`, margin + 3, y + 6);
+    y += 12;
+    for (const t of result.trackers.list) {
+      if (y > 280) { doc.addPage(); doc.setFillColor(colors.bg[0], colors.bg[1], colors.bg[2]); doc.rect(0, 0, pw, 297, 'F'); y = 20; }
+      doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
+      doc.text(`• ${t.name} — ${t.type}`, margin + 5, y);
+      y += 5;
+    }
+  }
+
+  // Footer on last page
+  doc.setFontSize(7); doc.setFont('helvetica', 'normal');
+  doc.setTextColor(colors.gray[0], colors.gray[1], colors.gray[2]);
+  doc.text('CREATED BY ATHANASIOS (SAKIS) ATHANASOPOULOS — Athan Security', pw / 2, 290, { align: 'center' });
+
+  const domain = new URL(result.url).hostname.replace(/\./g, '-');
+  doc.save(`DeepScan-${domain}-${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+// ═══════════════════════════════════════════════════════════════
 export default function ReportPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
   const [result, setResult] = useState<DeepScanResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [scanPhase, setScanPhase] = useState('');
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   useEffect(() => {
     const phases = ['Resolving DNS...', 'Checking 15 security headers...', 'Probing 67 sensitive files...', 'Scanning 20 admin panels...', 'Testing HTTP methods...', 'Analyzing cookies & CORS...', 'Fingerprinting technologies...', 'Scanning trackers...', 'Analyzing HTML content...', 'Calculating risk score...'];
     let i = 0;
     const interval = setInterval(() => { setScanPhase(phases[i % phases.length]); i++; }, 2500);
-
     fetch(`/api/report/${token}`)
       .then(r => r.json())
-      .then(data => {
-        if (data.error) setError(data.error);
-        else setResult(data.result);
-      })
+      .then(data => { if (data.error) setError(data.error); else setResult(data.result); })
       .catch(() => setError('Failed to load report'))
       .finally(() => { setLoading(false); clearInterval(interval); });
-
     return () => clearInterval(interval);
   }, [token]);
+
+  const handlePDF = useCallback(async () => {
+    if (!result) return;
+    setPdfLoading(true);
+    try { await generatePDF(result); } catch (e) { console.error('PDF error:', e); }
+    finally { setPdfLoading(false); }
+  }, [result]);
 
   const gc = (g: string) => g === 'A' ? 'text-green-500' : g === 'B' ? 'text-blue-500' : g === 'C' ? 'text-yellow-500' : g === 'D' ? 'text-orange-500' : 'text-red-500';
 
@@ -116,14 +252,20 @@ export default function ReportPage({ params }: { params: Promise<{ token: string
   return (
     <div className="min-h-screen bg-[#030712] text-white">
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-[#030712]/80 border-b border-white/5">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
-          <ShieldAlert className="w-6 h-6 text-red-500" />
-          <span className="font-bold text-lg">Athan<span className="text-red-500">DeepScan</span> — Full Report</span>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <ShieldAlert className="w-6 h-6 text-red-500" />
+            <span className="font-bold text-lg">Athan<span className="text-red-500">DeepScan</span> — Full Report</span>
+          </div>
+          <button onClick={handlePDF} disabled={pdfLoading} className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50">
+            {pdfLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Download PDF
+          </button>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 py-10 space-y-4">
-        {/* Grade + Stats */}
+        {/* Grade */}
         <div className="bg-white/5 rounded-2xl p-8 border border-white/10 text-center">
           <div className={`text-7xl font-black ${gc(result.grade)}`}>{result.grade}</div>
           <div className="text-slate-500 mt-2">Score: {result.score}/100 — {result.totalChecks} checks performed</div>
@@ -144,49 +286,30 @@ export default function ReportPage({ params }: { params: Promise<{ token: string
           </div>
         </div>
 
-        {/* All Check Sections */}
         <CheckSection title="Security Headers" icon="🛡️" checks={result.headers} defaultOpen={true} />
-        <CheckSection title="Exposed Files & Paths" icon="📁" checks={result.exposedFiles} defaultOpen={false} />
-        <CheckSection title="Admin Panels" icon="🔓" checks={result.adminPanels} defaultOpen={false} />
+        <CheckSection title="Exposed Files & Paths" icon="📁" checks={result.exposedFiles} />
+        <CheckSection title="Admin Panels" icon="🔓" checks={result.adminPanels} />
         <CheckSection title="Cookie Security" icon="🍪" checks={result.cookies} defaultOpen={true} />
         <CheckSection title="CORS Policy" icon="🌐" checks={result.cors} defaultOpen={true} />
         <CheckSection title="Information Disclosure" icon="💬" checks={result.infoDisclosure} defaultOpen={true} />
-        <CheckSection title="HTTP Methods" icon="📡" checks={result.httpMethods} defaultOpen={false} />
-        <CheckSection title="HTML Content Analysis" icon="📄" checks={result.htmlAnalysis} defaultOpen={false} />
+        <CheckSection title="HTTP Methods" icon="📡" checks={result.httpMethods} />
+        <CheckSection title="HTML Content Analysis" icon="📄" checks={result.htmlAnalysis} />
 
-        {/* Technologies */}
         {result.technologies.length > 0 && (
           <div className="bg-white/5 rounded-2xl p-5 border border-white/10">
             <div className="flex items-center gap-3 mb-4"><span className="text-xl">🔍</span><span className="font-bold">Detected Technologies</span></div>
-            <div className="flex flex-wrap gap-2">
-              {result.technologies.map((t, i) => (
-                <span key={i} className="px-3 py-1.5 bg-purple-500/10 text-purple-300 rounded-lg text-sm border border-purple-500/20">
-                  {t.name} <span className="text-xs opacity-60">({t.category})</span>
-                </span>
-              ))}
-            </div>
+            <div className="flex flex-wrap gap-2">{result.technologies.map((t, i) => <span key={i} className="px-3 py-1.5 bg-purple-500/10 text-purple-300 rounded-lg text-sm border border-purple-500/20">{t.name} <span className="text-xs opacity-60">({t.category})</span></span>)}</div>
           </div>
         )}
 
-        {/* Trackers */}
         {result.trackers.found > 0 && (
           <div className="bg-white/5 rounded-2xl p-5 border border-white/10">
             <div className="flex items-center gap-3 mb-4"><span className="text-xl">👁️</span><span className="font-bold">Pre-Consent Trackers ({result.trackers.found})</span></div>
-            <div className="space-y-2">
-              {result.trackers.list.map((t, i) => (
-                <div key={i} className="flex justify-between py-2 border-b border-white/5">
-                  <span className="text-sm">{t.name}</span>
-                  <span className="text-xs px-2 py-0.5 rounded bg-white/10">{t.type}</span>
-                </div>
-              ))}
-            </div>
+            <div className="space-y-2">{result.trackers.list.map((t, i) => <div key={i} className="flex justify-between py-2 border-b border-white/5"><span className="text-sm">{t.name}</span><span className="text-xs px-2 py-0.5 rounded bg-white/10">{t.type}</span></div>)}</div>
           </div>
         )}
       </main>
-
-      <footer className="text-center py-6 text-xs text-slate-500 border-t border-white/5">
-        CREATED BY ATHANASIOS (SAKIS) ATHANASOPOULOS — Athan Security
-      </footer>
+      <footer className="text-center py-6 text-xs text-slate-500 border-t border-white/5">CREATED BY ATHANASIOS (SAKIS) ATHANASOPOULOS — Athan Security</footer>
     </div>
   );
 }

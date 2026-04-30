@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { performDeepScan } from '@/lib/scanner';
 import { isCorporateEmail, createToken } from '@/lib/emailValidator';
 import { sendVerificationEmail } from '@/lib/mailer';
+import { saveLeadToSheet } from '@/lib/googleSheets';
 
 export async function POST(request: Request) {
   try {
@@ -28,6 +29,9 @@ export async function POST(request: Request) {
         console.error('Failed to send verification email:', mailErr);
       }
     }
+
+    // Save lead to Google Sheets (with DeepSearch source tag)
+    saveLeadToSheet({ email, url, grade: result.grade, score: result.score }).catch(() => {});
 
     return NextResponse.json({
       token,

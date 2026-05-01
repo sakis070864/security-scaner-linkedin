@@ -167,9 +167,9 @@ export default function Home() {
             {emailType === 'free' && (
               <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-6 text-center">
                 <Lock className="w-10 h-10 text-amber-500 mx-auto mb-3" />
-                <h3 className="text-lg font-bold mb-2">Corporate Email Required</h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">Full details require a corporate email. The summary above is free.</p>
-                <p className="text-sm text-slate-500">No corporate email? Contact <strong className="text-red-500">sakis@sakis-athan.com</strong> — full report within 2 hours.</p>
+                <h3 className="text-lg font-bold mb-2">Unauthorized Email</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">Your email domain doesn't match the website you scanned. Use your <strong>company email</strong> (e.g. <em>you@{(() => { try { let u = url.trim(); if (!u.startsWith('http')) u = 'https://' + u; return new URL(u).hostname.replace(/^www\./, ''); } catch { return 'scanned-site.com'; } })()}</em>) to receive the full report.</p>
+                <p className="text-sm text-slate-500">Need a report without a company email? Contact <strong className="text-red-500">sakis@sakis-athan.com</strong> — full report within 2 hours.</p>
               </div>
             )}
             {emailType === 'corporate' && (

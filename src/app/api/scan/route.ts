@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { performDeepScan } from '@/lib/scanner';
-import { isCorporateEmail, createToken } from '@/lib/emailValidator';
+import { isAuthorizedEmail, createToken } from '@/lib/emailValidator';
 import { sendVerificationEmail } from '@/lib/mailer';
 import { saveLeadToSheet } from '@/lib/googleSheets';
 
@@ -11,16 +11,17 @@ export async function POST(request: Request) {
     if (!url) return NextResponse.json({ error: 'URL is required' }, { status: 400 });
     if (!email || !email.includes('@')) return NextResponse.json({ error: 'Valid email is required' }, { status: 400 });
 
-    const corporate = isCorporateEmail(email);
+    // Check if email domain matches the scanned website domain
+    const authorized = isAuthorizedEmail(email, url);
 
     // Run the deep scan
     const result = await performDeepScan(url);
 
     // Create token (encodes email + url in base64url)
-    const token = createToken(email, url, corporate ? 'corporate' : 'free');
+    const token = createToken(email, url, authorized ? 'corporate' : 'free');
 
-    // If corporate email → send verification email with link to /report/TOKEN
-    if (corporate) {
+    // If authorized email (domain matches site) → send report email
+    if (authorized) {
       try {
         const baseUrl = request.headers.get('origin') || request.headers.get('referer')?.replace(/\/+$/, '') || '';
         const reportLink = `${baseUrl}/report/${token}`;
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       token,
-      emailType: corporate ? 'corporate' : 'free',
+      emailType: authorized ? 'corporate' : 'free',
       result,
     });
 

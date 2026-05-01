@@ -20,6 +20,28 @@ export function isCorporateEmail(email: string): boolean {
   return !FREE_EMAIL_PROVIDERS.has(domain);
 }
 
+/**
+ * Checks if the email domain matches the website domain being scanned.
+ * e.g. scanning cnn.com → email must be xxx@cnn.com
+ * Free providers (gmail, yahoo...) never match.
+ */
+export function isAuthorizedEmail(email: string, siteUrl: string): boolean {
+  const emailDomain = email.split('@')[1]?.toLowerCase();
+  if (!emailDomain) return false;
+  // Free emails are never authorized
+  if (FREE_EMAIL_PROVIDERS.has(emailDomain)) return false;
+  // Extract domain from URL
+  try {
+    let cleaned = siteUrl.trim();
+    if (!cleaned.startsWith('http')) cleaned = 'https://' + cleaned;
+    const urlDomain = new URL(cleaned).hostname.replace(/^www\./, '').toLowerCase();
+    // Email domain must match site domain
+    return emailDomain === urlDomain;
+  } catch {
+    return false;
+  }
+}
+
 // ─── Token Encoding/Decoding ────────────────────────────────────────────────
 // Token = base64url({ email, url, exp, source })
 // This is NOT a security mechanism — it's a convenience token.

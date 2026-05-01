@@ -108,7 +108,7 @@ export default function Home() {
   const gc = (g: string) => g === 'A' ? 'text-green-500' : g === 'B' ? 'text-blue-500' : g === 'C' ? 'text-yellow-500' : g === 'D' ? 'text-orange-500' : 'text-red-500';
 
   if (!mounted) return null;
-  const isBlurred = result && (emailType === 'free' || emailType === 'corporate');
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100 dark:from-[#030712] dark:via-[#0a0f1a] dark:to-[#030712] text-slate-900 dark:text-white transition-colors">
@@ -150,7 +150,37 @@ export default function Home() {
 
         {error && <div className="max-w-2xl mx-auto mb-8 p-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl text-red-700 dark:text-red-400 text-center">{error}</div>}
 
-        {result && (
+        {/* ── Unauthorized: Full-screen popup, ZERO data shown ── */}
+        {result && emailType === 'free' && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-[#0f1729] rounded-3xl border border-slate-200 dark:border-white/10 shadow-2xl max-w-lg w-full p-10 text-center animate-in">
+              <div className="w-20 h-20 bg-red-100 dark:bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <ShieldAlert className="w-10 h-10 text-red-500" />
+              </div>
+              <h2 className="text-2xl font-extrabold mb-4">Unauthorized Access</h2>
+              <div className="space-y-4 text-sm text-slate-600 dark:text-slate-400">
+                <p>This is a <strong className="text-slate-900 dark:text-white">deep penetration security audit</strong>. For security and legal reasons, only authorized personnel can scan a website.</p>
+                <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl p-4 text-left">
+                  <p className="font-semibold text-amber-800 dark:text-amber-400 mb-2">✉️ Email verification required</p>
+                  <p>Your email domain must match the website you're scanning. For example, to scan <strong className="text-slate-900 dark:text-white">{(() => { try { let u = url.trim(); if (!u.startsWith('http')) u = 'https://' + u; return new URL(u).hostname.replace(/^www\./, ''); } catch { return 'example.com'; } })()}</strong> you need an email like:</p>
+                  <p className="mt-2 font-mono text-base text-amber-700 dark:text-amber-300">you@{(() => { try { let u = url.trim(); if (!u.startsWith('http')) u = 'https://' + u; return new URL(u).hostname.replace(/^www\./, ''); } catch { return 'example.com'; } })()}</p>
+                </div>
+                <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-xl p-4 text-left">
+                  <p className="font-semibold text-blue-800 dark:text-blue-400 mb-2">🤝 Don't have a company email?</p>
+                  <p>You can request <strong>manual authorization</strong> by contacting:</p>
+                  <p className="mt-2 font-semibold text-lg text-red-500">sakis@sakis-athan.com</p>
+                  <p className="text-xs text-slate-500 mt-1">Full report delivered within 2 hours.</p>
+                </div>
+              </div>
+              <button onClick={() => { setResult(null); setEmailType(null); }} className="mt-8 w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-xl transition-all">
+                ← Try Again with Authorized Email
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Authorized: Show full results ── */}
+        {result && emailType === 'corporate' && (
           <div className="space-y-4">
             {/* Grade + Stats */}
             <div className="bg-white dark:bg-white/5 rounded-2xl p-8 border border-slate-200 dark:border-white/10 text-center">
@@ -163,55 +193,32 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Gate Messages */}
-            {emailType === 'free' && (
-              <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-2xl p-6 text-center">
-                <Lock className="w-10 h-10 text-amber-500 mx-auto mb-3" />
-                <h3 className="text-lg font-bold mb-2">Unauthorized Email</h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">Your email domain doesn't match the website you scanned. Use your <strong>company email</strong> (e.g. <em>you@{(() => { try { let u = url.trim(); if (!u.startsWith('http')) u = 'https://' + u; return new URL(u).hostname.replace(/^www\./, ''); } catch { return 'scanned-site.com'; } })()}</em>) to receive the full report.</p>
-                <p className="text-sm text-slate-500">Need a report without a company email? Contact <strong className="text-red-500">sakis@sakis-athan.com</strong> — full report within 2 hours.</p>
-              </div>
-            )}
-            {emailType === 'corporate' && (
-              <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-6 text-center">
-                <Mail className="w-10 h-10 text-blue-500 mx-auto mb-3" />
-                <h3 className="text-lg font-bold mb-2">Check Your Email</h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400">We sent a link to <strong>{email}</strong>. Click it to view the full report.</p>
-              </div>
-            )}
-
-            {/* Always visible: Headers */}
-            <CheckSection title="Security Headers" icon="🛡️" checks={result.headers} defaultOpen={true} />
-
-            {/* Blurred sections */}
-            <div className={isBlurred ? 'relative' : ''}>
-              {isBlurred && (
-                <div className="absolute inset-0 z-10 backdrop-blur-md bg-white/20 dark:bg-black/20 rounded-2xl flex items-center justify-center">
-                  <div className="text-center p-8"><Lock className="w-12 h-12 text-red-500 mx-auto mb-4" /><p className="font-bold text-lg">Full Report Locked</p></div>
-                </div>
-              )}
-              <div className="space-y-4">
-                <CheckSection title="Exposed Files & Paths" icon="📁" checks={result.exposedFiles} />
-                <CheckSection title="Admin Panels" icon="🔓" checks={result.adminPanels} />
-                <CheckSection title="Cookie Security" icon="🍪" checks={result.cookies} />
-                <CheckSection title="CORS Policy" icon="🌐" checks={result.cors} />
-                <CheckSection title="Information Disclosure" icon="💬" checks={result.infoDisclosure} />
-                <CheckSection title="HTTP Methods" icon="📡" checks={result.httpMethods} />
-                <CheckSection title="HTML Content Analysis" icon="📄" checks={result.htmlAnalysis} />
-                {result.technologies.length > 0 && (
-                  <div className="bg-white dark:bg-white/5 rounded-2xl p-5 border border-slate-200 dark:border-white/10">
-                    <div className="flex items-center gap-3 mb-4"><span className="text-xl">🔍</span><span className="font-bold">Detected Technologies</span></div>
-                    <div className="flex flex-wrap gap-2">{result.technologies.map((t, i) => <span key={i} className="px-3 py-1.5 bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 rounded-lg text-sm border border-purple-200 dark:border-purple-500/20">{t.name} <span className="text-xs opacity-60">({t.category})</span></span>)}</div>
-                  </div>
-                )}
-                {result.trackers.found > 0 && (
-                  <div className="bg-white dark:bg-white/5 rounded-2xl p-5 border border-slate-200 dark:border-white/10">
-                    <div className="flex items-center gap-3 mb-4"><span className="text-xl">👁️</span><span className="font-bold">Pre-Consent Trackers ({result.trackers.found})</span></div>
-                    <div className="space-y-2">{result.trackers.list.map((t, i) => <div key={i} className="flex justify-between py-2 border-b border-slate-100 dark:border-white/5"><span className="text-sm">{t.name}</span><span className="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10">{t.type}</span></div>)}</div>
-                  </div>
-                )}
-              </div>
+            <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-6 text-center">
+              <Mail className="w-10 h-10 text-blue-500 mx-auto mb-3" />
+              <h3 className="text-lg font-bold mb-2">Check Your Email</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400">We sent a full report link to <strong>{email}</strong>. Click it to view & download the PDF.</p>
             </div>
+
+            <CheckSection title="Security Headers" icon="🛡️" checks={result.headers} defaultOpen={true} />
+            <CheckSection title="Exposed Files & Paths" icon="📁" checks={result.exposedFiles} />
+            <CheckSection title="Admin Panels" icon="🔓" checks={result.adminPanels} />
+            <CheckSection title="Cookie Security" icon="🍪" checks={result.cookies} />
+            <CheckSection title="CORS Policy" icon="🌐" checks={result.cors} />
+            <CheckSection title="Information Disclosure" icon="💬" checks={result.infoDisclosure} />
+            <CheckSection title="HTTP Methods" icon="📡" checks={result.httpMethods} />
+            <CheckSection title="HTML Content Analysis" icon="📄" checks={result.htmlAnalysis} />
+            {result.technologies.length > 0 && (
+              <div className="bg-white dark:bg-white/5 rounded-2xl p-5 border border-slate-200 dark:border-white/10">
+                <div className="flex items-center gap-3 mb-4"><span className="text-xl">🔍</span><span className="font-bold">Detected Technologies</span></div>
+                <div className="flex flex-wrap gap-2">{result.technologies.map((t, i) => <span key={i} className="px-3 py-1.5 bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 rounded-lg text-sm border border-purple-200 dark:border-purple-500/20">{t.name} <span className="text-xs opacity-60">({t.category})</span></span>)}</div>
+              </div>
+            )}
+            {result.trackers.found > 0 && (
+              <div className="bg-white dark:bg-white/5 rounded-2xl p-5 border border-slate-200 dark:border-white/10">
+                <div className="flex items-center gap-3 mb-4"><span className="text-xl">👁️</span><span className="font-bold">Pre-Consent Trackers ({result.trackers.found})</span></div>
+                <div className="space-y-2">{result.trackers.list.map((t, i) => <div key={i} className="flex justify-between py-2 border-b border-slate-100 dark:border-white/5"><span className="text-sm">{t.name}</span><span className="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10">{t.type}</span></div>)}</div>
+              </div>
+            )}
           </div>
         )}
       </main>

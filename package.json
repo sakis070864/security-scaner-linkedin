@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "@vercel/functions": "^3.4.4",
     "google-auth-library": "^10.6.2",
     "google-spreadsheet": "^5.2.0",
